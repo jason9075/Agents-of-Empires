@@ -1,666 +1,819 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Battle Monitor — Agents of Dynasties</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Battle Monitor — Agents of Dynasties</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
 
-    :root {
-      --c1: #4a90e2;
-      --c2: #e25050;
-      --bg: #0d0d0d;
-      --panel: #161616;
-      --border: #2a2a2a;
-    }
+      :root {
+        --c1: #4a90e2;
+        --c2: #e25050;
+        --bg: #0d0d0d;
+        --panel: #161616;
+        --border: #2a2a2a;
+      }
 
-    body {
-      font-family: system-ui, sans-serif;
-      background: var(--bg);
-      color: #ddd;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
-    }
+      body {
+        font-family: system-ui, sans-serif;
+        background: var(--bg);
+        color: #ddd;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
 
-    /* ── Top bar ── */
-    #topbar {
-      display: flex;
-      align-items: center;
-      gap: 1.5rem;
-      padding: 0.5rem 1rem;
-      background: var(--panel);
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
+      /* ── Top bar ── */
+      #topbar {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        padding: 0.5rem 1rem;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
 
-    #topbar h1 { font-size: 0.9rem; font-weight: 700; letter-spacing: 0.08em; color: #bbb; }
+      #topbar h1 {
+        font-size: 0.9rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: #bbb;
+      }
 
-    .tick-badge {
-      font-size: 0.8rem;
-      color: #888;
-    }
-    .tick-badge span { font-weight: 700; color: #eee; }
+      .tick-badge {
+        font-size: 0.8rem;
+        color: #888;
+      }
 
-    .dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: #555;
-      transition: background 0.3s;
-    }
-    .dot.live { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
+      .tick-badge span {
+        font-weight: 700;
+        color: #eee;
+      }
 
-    #refresh-btn {
-      background: #222;
-      border: 1px solid #444;
-      color: #aaa;
-      padding: 3px 10px;
-      border-radius: 5px;
-      font-size: 0.75rem;
-      cursor: pointer;
-    }
-    #refresh-btn:hover { background: #2d2d2d; color: #fff; }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #555;
+        transition: background 0.3s;
+      }
 
-    /* ── Zoom controls ── */
-    .zoom-controls {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      margin-left: auto;
-    }
+      .dot.live {
+        background: #4caf50;
+        box-shadow: 0 0 6px #4caf50;
+      }
 
-    .zoom-controls button {
-      background: #222;
-      border: 1px solid #444;
-      color: #ccc;
-      width: 22px; height: 22px;
-      border-radius: 4px;
-      font-size: 0.9rem;
-      line-height: 1;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
-    .zoom-controls button:hover { background: #333; color: #fff; }
+      #refresh-btn {
+        background: #222;
+        border: 1px solid #444;
+        color: #aaa;
+        padding: 3px 10px;
+        border-radius: 5px;
+        font-size: 0.75rem;
+        cursor: pointer;
+      }
 
-    #zoom-slider {
-      width: 90px;
-      accent-color: #4a90e2;
-      cursor: pointer;
-    }
+      #refresh-btn:hover {
+        background: #2d2d2d;
+        color: #fff;
+      }
 
-    #zoom-label {
-      font-size: 0.75rem;
-      color: #888;
-      width: 3rem;
-      text-align: right;
-    }
+      /* ── Zoom controls ── */
+      .zoom-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-left: auto;
+      }
 
-    /* ── Main layout ── */
-    #main {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-    }
+      .zoom-controls button {
+        background: #222;
+        border: 1px solid #444;
+        color: #ccc;
+        width: 22px;
+        height: 22px;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        line-height: 1;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
 
-    /* ── Canvas area ── */
-    #canvas-wrap {
-      flex: 1;
-      overflow: auto;
-      display: flex;
-      align-items: flex-start;
-      justify-content: flex-start;
-      padding: 1rem;
-    }
+      .zoom-controls button:hover {
+        background: #333;
+        color: #fff;
+      }
 
-    #map-canvas {
-      cursor: grab;
-      display: block;
-    }
+      #zoom-slider {
+        width: 90px;
+        accent-color: #4a90e2;
+        cursor: pointer;
+      }
 
-    /* ── Sidebar ── */
-    #sidebar {
-      width: 220px;
-      flex-shrink: 0;
-      border-left: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      overflow-y: auto;
-    }
+      #zoom-label {
+        font-size: 0.75rem;
+        color: #888;
+        width: 3rem;
+        text-align: right;
+      }
 
-    .team-panel {
-      padding: 0.75rem;
-      border-bottom: 1px solid var(--border);
-    }
+      /* ── Main layout ── */
+      #main {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
 
-    .team-header {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-bottom: 0.6rem;
-    }
+      /* ── Canvas area ── */
+      #canvas-wrap {
+        flex: 1;
+        overflow: auto;
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-start;
+        padding: 1rem;
+      }
 
-    .team-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-    }
+      #map-canvas {
+        cursor: grab;
+        display: block;
+      }
 
-    .team-header h2 { font-size: 0.85rem; font-weight: 700; }
+      /* ── Sidebar ── */
+      #sidebar {
+        width: 220px;
+        flex-shrink: 0;
+        border-left: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+      }
 
-    .stat-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.75rem;
-      color: #999;
-      margin-bottom: 0.2rem;
-    }
-    .stat-row span { color: #eee; font-weight: 600; }
+      .team-panel {
+        padding: 0.75rem;
+        border-bottom: 1px solid var(--border);
+      }
 
-    .divider {
-      border: none;
-      border-top: 1px solid var(--border);
-      margin: 0.5rem 0;
-    }
+      .team-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.6rem;
+      }
 
-    .unit-list {
-      font-size: 0.7rem;
-      color: #888;
-    }
-    .unit-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 1px 0;
-    }
+      .team-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
 
-    /* ── Legend ── */
-    #legend {
-      padding: 0.75rem;
-      border-top: 1px solid var(--border);
-      margin-top: auto;
-    }
+      .team-header h2 {
+        font-size: 0.85rem;
+        font-weight: 700;
+      }
 
-    #legend h3 { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #666; margin-bottom: 0.4rem; }
+      .stat-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.75rem;
+        color: #999;
+        margin-bottom: 0.2rem;
+      }
 
-    .legend-row {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-size: 0.68rem;
-      color: #888;
-      margin-bottom: 0.25rem;
-    }
+      .stat-row span {
+        color: #eee;
+        font-weight: 600;
+      }
 
-    .swatch {
-      width: 12px; height: 12px;
-      border-radius: 2px;
-      flex-shrink: 0;
-    }
+      .divider {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 0.5rem 0;
+      }
 
-    /* ── Tooltip ── */
-    #tooltip {
-      position: fixed;
-      background: #222;
-      border: 1px solid #444;
-      border-radius: 6px;
-      padding: 0.4rem 0.6rem;
-      font-size: 0.72rem;
-      color: #ddd;
-      pointer-events: none;
-      display: none;
-      z-index: 100;
-      max-width: 180px;
-      line-height: 1.5;
-    }
-  </style>
-</head>
-<body>
+      .unit-list {
+        font-size: 0.7rem;
+        color: #888;
+      }
 
-<div id="topbar">
-  <h1>AGENTS OF EMPIRES</h1>
-  <div class="tick-badge">Tick <span id="tick-num">—</span></div>
-  <div class="dot" id="live-dot" title="Live"></div>
-  <div class="zoom-controls">
-    <button onclick="adjustZoom(-0.25)" title="Zoom out">−</button>
-    <input type="range" id="zoom-slider" min="0.4" max="2" step="0.2" value="1"
-           oninput="setZoom(parseFloat(this.value))">
-    <button onclick="adjustZoom(+0.25)" title="Zoom in">+</button>
-    <span id="zoom-label">100%</span>
-    <button id="refresh-btn" onclick="fetchAndDraw()">Refresh</button>
-  </div>
-</div>
+      .unit-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 1px 0;
+      }
 
-<div id="main">
-  <div id="canvas-wrap">
-    <canvas id="map-canvas"></canvas>
-  </div>
+      /* ── Legend ── */
+      #legend {
+        padding: 0.75rem;
+        border-top: 1px solid var(--border);
+        margin-top: auto;
+      }
 
-  <div id="sidebar">
-    <!-- Team 1 -->
-    <div class="team-panel">
-      <div class="team-header">
-        <div class="team-dot" style="background:var(--c1)"></div>
-        <h2>Team 1</h2>
+      #legend h3 {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #666;
+        margin-bottom: 0.4rem;
+      }
+
+      .legend-row {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.68rem;
+        color: #888;
+        margin-bottom: 0.25rem;
+      }
+
+      .swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+        flex-shrink: 0;
+      }
+
+      /* ── Tooltip ── */
+      #tooltip {
+        position: fixed;
+        background: #222;
+        border: 1px solid #444;
+        border-radius: 6px;
+        padding: 0.4rem 0.6rem;
+        font-size: 0.72rem;
+        color: #ddd;
+        pointer-events: none;
+        display: none;
+        z-index: 100;
+        max-width: 180px;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="topbar">
+      <h1>AGENTS OF DYNASTIES</h1>
+      <div class="tick-badge">Tick <span id="tick-num">—</span></div>
+      <div class="dot" id="live-dot" title="Live"></div>
+      <div class="zoom-controls">
+        <button onclick="adjustZoom(-0.25)" title="Zoom out">−</button>
+        <input
+          type="range"
+          id="zoom-slider"
+          min="0.4"
+          max="2"
+          step="0.2"
+          value="1"
+          oninput="setZoom(parseFloat(this.value))"
+        />
+        <button onclick="adjustZoom(+0.25)" title="Zoom in">+</button>
+        <span id="zoom-label">100%</span>
+        <button id="refresh-btn" onclick="fetchAndDraw()">Refresh</button>
       </div>
-      <div class="stat-row">Food   <span id="t1-food">—</span></div>
-      <div class="stat-row">Gold   <span id="t1-gold">—</span></div>
-      <div class="stat-row">Stone  <span id="t1-stone">—</span></div>
-      <div class="stat-row">Wood   <span id="t1-wood">—</span></div>
-      <hr class="divider">
-      <div class="stat-row">Units  <span id="t1-units">—</span></div>
-      <div class="stat-row">Buildings <span id="t1-buildings">—</span></div>
-      <hr class="divider">
-      <div class="unit-list" id="t1-unit-list"></div>
     </div>
 
-    <!-- Team 2 -->
-    <div class="team-panel">
-      <div class="team-header">
-        <div class="team-dot" style="background:var(--c2)"></div>
-        <h2>Team 2</h2>
+    <div id="main">
+      <div id="canvas-wrap">
+        <canvas id="map-canvas"></canvas>
       </div>
-      <div class="stat-row">Food   <span id="t2-food">—</span></div>
-      <div class="stat-row">Gold   <span id="t2-gold">—</span></div>
-      <div class="stat-row">Stone  <span id="t2-stone">—</span></div>
-      <div class="stat-row">Wood   <span id="t2-wood">—</span></div>
-      <hr class="divider">
-      <div class="stat-row">Units  <span id="t2-units">—</span></div>
-      <div class="stat-row">Buildings <span id="t2-buildings">—</span></div>
-      <hr class="divider">
-      <div class="unit-list" id="t2-unit-list"></div>
+
+      <div id="sidebar">
+        <!-- Team 1 -->
+        <div class="team-panel">
+          <div class="team-header">
+            <div class="team-dot" style="background: var(--c1)"></div>
+            <h2>Team 1</h2>
+          </div>
+          <div class="stat-row">Food <span id="t1-food">—</span></div>
+          <div class="stat-row">Gold <span id="t1-gold">—</span></div>
+          <div class="stat-row">Stone <span id="t1-stone">—</span></div>
+          <div class="stat-row">Wood <span id="t1-wood">—</span></div>
+          <hr class="divider" />
+          <div class="stat-row">Units <span id="t1-units">—</span></div>
+          <div class="stat-row">Buildings <span id="t1-buildings">—</span></div>
+          <hr class="divider" />
+          <div class="unit-list" id="t1-unit-list"></div>
+        </div>
+
+        <!-- Team 2 -->
+        <div class="team-panel">
+          <div class="team-header">
+            <div class="team-dot" style="background: var(--c2)"></div>
+            <h2>Team 2</h2>
+          </div>
+          <div class="stat-row">Food <span id="t2-food">—</span></div>
+          <div class="stat-row">Gold <span id="t2-gold">—</span></div>
+          <div class="stat-row">Stone <span id="t2-stone">—</span></div>
+          <div class="stat-row">Wood <span id="t2-wood">—</span></div>
+          <hr class="divider" />
+          <div class="stat-row">Units <span id="t2-units">—</span></div>
+          <div class="stat-row">Buildings <span id="t2-buildings">—</span></div>
+          <hr class="divider" />
+          <div class="unit-list" id="t2-unit-list"></div>
+        </div>
+
+        <!-- Legend -->
+        <div id="legend">
+          <h3>Terrain</h3>
+          <div class="legend-row">
+            <div class="swatch" style="background: #5a6e3a"></div>
+            Plain
+          </div>
+          <div class="legend-row">
+            <div class="swatch" style="background: #2d5a27"></div>
+            Forest
+          </div>
+          <div class="legend-row">
+            <div class="swatch" style="background: #6a5f52"></div>
+            Mountain
+          </div>
+          <div class="legend-row">
+            <div class="swatch" style="background: #2a5b8a"></div>
+            Lake
+          </div>
+          <div class="legend-row">
+            <div class="swatch" style="background: #c4a629"></div>
+            Gold Mine
+          </div>
+          <div class="legend-row">
+            <div class="swatch" style="background: #7a6e60"></div>
+            Stone Mine
+          </div>
+          <div class="legend-row">
+            <div class="swatch" style="background: #4a8a2a"></div>
+            Orchard
+          </div>
+          <div class="legend-row">
+            <div class="swatch" style="background: #5a8060"></div>
+            Deer
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Legend -->
-    <div id="legend">
-      <h3>Terrain</h3>
-      <div class="legend-row"><div class="swatch" style="background:#5a6e3a"></div>Plain</div>
-      <div class="legend-row"><div class="swatch" style="background:#2d5a27"></div>Forest</div>
-      <div class="legend-row"><div class="swatch" style="background:#6a5f52"></div>Mountain</div>
-      <div class="legend-row"><div class="swatch" style="background:#2a5b8a"></div>Lake</div>
-      <div class="legend-row"><div class="swatch" style="background:#c4a629"></div>Gold Mine</div>
-      <div class="legend-row"><div class="swatch" style="background:#7a6e60"></div>Stone Mine</div>
-      <div class="legend-row"><div class="swatch" style="background:#4a8a2a"></div>Orchard</div>
-      <div class="legend-row"><div class="swatch" style="background:#5a8060"></div>Deer</div>
-    </div>
-  </div>
-</div>
+    <div id="tooltip"></div>
 
-<div id="tooltip"></div>
+    <script>
+      // ── Constants ──────────────────────────────────────────────────────────────
 
-<script>
-// ── Constants ──────────────────────────────────────────────────────────────
+      const HEX_SIZE = 50 // px, pointy-top
+      const SQRT3 = Math.sqrt(3)
+      const PAD = HEX_SIZE // canvas padding
+      const TEAM_COLOR = { 1: '#4a90e2', 2: '#e25050' }
+      const TERRAIN_COLOR = {
+        plain: '#5a6e3a',
+        forest: '#2d5a27',
+        mountain: '#6a5f52',
+        lake: '#2a5b8a',
+        gold_mine: '#c4a629',
+        stone_mine: '#7a6e60',
+        orchard: '#4a8a2a',
+        deer: '#5a8060',
+      }
+      const UNIT_ABBR = {
+        villager: 'V',
+        infantry: 'I',
+        spearman: 'Sp',
+        scout_cavalry: 'Sc',
+        paladin: 'Pa',
+        archer: 'Ar',
+      }
+      const BLDG_ABBR = {
+        town_center: 'TC',
+        barracks: 'Ba',
+        stable: 'St',
+        archery_range: 'AR',
+      }
 
-const HEX_SIZE = 50;          // px, pointy-top
-const SQRT3    = Math.sqrt(3);
-const PAD      = HEX_SIZE;    // canvas padding
-const TEAM_COLOR = { 1: '#4a90e2', 2: '#e25050' };
-const TERRAIN_COLOR = {
-  plain:      '#5a6e3a',
-  forest:     '#2d5a27',
-  mountain:   '#6a5f52',
-  lake:       '#2a5b8a',
-  gold_mine:  '#c4a629',
-  stone_mine: '#7a6e60',
-  orchard:    '#4a8a2a',
-  deer:       '#5a8060',
-};
-const UNIT_ABBR = {
-  villager: 'V', infantry: 'I', spearman: 'Sp',
-  scout_cavalry: 'Sc', paladin: 'Pa', archer: 'Ar',
-};
-const BLDG_ABBR = {
-  town_center: 'TC', barracks: 'Ba', stable: 'St', archery_range: 'AR',
-};
+      const ALL_TERRAINS = [
+        'plain',
+        'forest',
+        'mountain',
+        'lake',
+        'gold_mine',
+        'stone_mine',
+        'orchard',
+        'deer',
+      ]
+      const ALL_UNIT_KINDS = [
+        'villager',
+        'infantry',
+        'spearman',
+        'scout_cavalry',
+        'paladin',
+        'archer',
+      ]
+      const ALL_BLDG_KINDS = [
+        'town_center',
+        'barracks',
+        'stable',
+        'archery_range',
+      ]
 
-const ALL_TERRAINS   = ['plain','forest','mountain','lake','gold_mine','stone_mine','orchard','deer'];
-const ALL_UNIT_KINDS = ['villager','infantry','spearman','scout_cavalry','paladin','archer'];
-const ALL_BLDG_KINDS = ['town_center','barracks','stable','archery_range'];
+      // ── Hex math — odd-r offset, pointy-top ────────────────────────────────────
+      // Rows go left-to-right; odd rows are shifted right by half a hex.
+      // This produces a visually square 20×20 grid.
 
-// ── Hex math — odd-r offset, pointy-top ────────────────────────────────────
-// Rows go left-to-right; odd rows are shifted right by half a hex.
-// This produces a visually square 20×20 grid.
+      function hexToPixel(q, r) {
+        return {
+          x: HEX_SIZE * SQRT3 * (q + 0.5 * (r & 1)),
+          y: HEX_SIZE * 1.5 * r,
+        }
+      }
 
-function hexToPixel(q, r) {
-  return {
-    x: HEX_SIZE * SQRT3 * (q + 0.5 * (r & 1)),
-    y: HEX_SIZE * 1.5   * r,
-  };
-}
+      // Returns the 6 pointy-top corner points for a hex centred at (cx, cy).
+      function hexPath(ctx, cx, cy) {
+        ctx.beginPath()
+        for (let i = 0; i < 6; i++) {
+          const angle = (Math.PI / 3) * i - Math.PI / 6 // pointy-top, 0° = right, -30° offset
+          const px = cx + HEX_SIZE * Math.cos(angle)
+          const py = cy + HEX_SIZE * Math.sin(angle)
+          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)
+        }
+        ctx.closePath()
+      }
 
-// Returns the 6 pointy-top corner points for a hex centred at (cx, cy).
-function hexPath(ctx, cx, cy) {
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const angle = Math.PI / 3 * i - Math.PI / 6; // pointy-top, 0° = right, -30° offset
-    const px = cx + HEX_SIZE * Math.cos(angle);
-    const py = cy + HEX_SIZE * Math.sin(angle);
-    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-}
+      // Approximate pixel → axial hex (good enough for hover detection).
+      function pixelToHex(px, py) {
+        const r = Math.round(py / (HEX_SIZE * 1.5))
+        const q = Math.round(px / (HEX_SIZE * SQRT3) - 0.5 * (r & 1))
+        return { q, r }
+      }
 
-// Approximate pixel → axial hex (good enough for hover detection).
-function pixelToHex(px, py) {
-  const r = Math.round(py / (HEX_SIZE * 1.5));
-  const q = Math.round(px / (HEX_SIZE * SQRT3) - 0.5 * (r & 1));
-  return { q, r };
-}
+      // ── Zoom ───────────────────────────────────────────────────────────────────
 
-// ── Zoom ───────────────────────────────────────────────────────────────────
+      const ZOOM_KEY = 'aoe_zoom_v2' // bump version to reset stored values
+      const ZOOM_MIN = 0.4
+      const ZOOM_MAX = 2.0
+      const ZOOM_STEP = 0.2
 
-const ZOOM_KEY  = 'aoe_zoom_v2'; // bump version to reset stored values
-const ZOOM_MIN  = 0.4;
-const ZOOM_MAX  = 2.0;
-const ZOOM_STEP = 0.2;
+      let zoomScale = Math.min(
+        ZOOM_MAX,
+        Math.max(ZOOM_MIN, parseFloat(localStorage.getItem(ZOOM_KEY) || '1')),
+      )
 
-let zoomScale = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN,
-  parseFloat(localStorage.getItem(ZOOM_KEY) || '1')
-));
+      function setZoom(scale) {
+        zoomScale =
+          Math.round(
+            Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, scale)) / ZOOM_STEP,
+          ) * ZOOM_STEP
+        localStorage.setItem(ZOOM_KEY, zoomScale)
+        document.getElementById('zoom-slider').value = zoomScale
+        document.getElementById('zoom-label').textContent =
+          Math.round(zoomScale * 100) + '%'
+        drawMap()
+      }
 
-function setZoom(scale) {
-  zoomScale = Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, scale)) / ZOOM_STEP) * ZOOM_STEP;
-  localStorage.setItem(ZOOM_KEY, zoomScale);
-  document.getElementById('zoom-slider').value = zoomScale;
-  document.getElementById('zoom-label').textContent = Math.round(zoomScale * 100) + '%';
-  drawMap();
-}
+      function adjustZoom(delta) {
+        setZoom(zoomScale + delta)
+      }
 
-function adjustZoom(delta) { setZoom(zoomScale + delta); }
+      // ── Image cache ────────────────────────────────────────────────────────────
 
-// ── Image cache ────────────────────────────────────────────────────────────
+      const images = {} // path → HTMLImageElement (only populated on success)
 
-const images = {};   // path → HTMLImageElement (only populated on success)
+      function loadImage(src) {
+        return new Promise((resolve) => {
+          const img = new Image()
+          img.onload = () => {
+            images[src] = img
+            resolve()
+          }
+          img.onerror = () => resolve() // missing → silent fallback
+          img.src = src
+        })
+      }
 
-function loadImage(src) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload  = () => { images[src] = img; resolve(); };
-    img.onerror = () => resolve();   // missing → silent fallback
-    img.src = src;
-  });
-}
+      async function preloadAssets() {
+        const tasks = []
+        for (const t of ALL_TERRAINS)
+          tasks.push(loadImage(`assets/terrain/${t}.png`))
+        for (const team of [1, 2]) {
+          for (const k of ALL_UNIT_KINDS)
+            tasks.push(loadImage(`assets/units/team${team}/${k}.png`))
+          for (const k of ALL_BLDG_KINDS)
+            tasks.push(loadImage(`assets/buildings/team${team}/${k}.png`))
+        }
+        await Promise.all(tasks)
+      }
 
-async function preloadAssets() {
-  const tasks = [];
-  for (const t of ALL_TERRAINS)   tasks.push(loadImage(`assets/terrain/${t}.png`));
-  for (const team of [1, 2]) {
-    for (const k of ALL_UNIT_KINDS) tasks.push(loadImage(`assets/units/team${team}/${k}.png`));
-    for (const k of ALL_BLDG_KINDS) tasks.push(loadImage(`assets/buildings/team${team}/${k}.png`));
-  }
-  await Promise.all(tasks);
-}
+      // ── State ──────────────────────────────────────────────────────────────────
 
-// ── State ──────────────────────────────────────────────────────────────────
+      let mapData = null
+      let gameState = null
+      let tileMap = {} // "q,r" → tile
+      let entityMap = {} // "q,r" → [{type, data}]
 
-let mapData   = null;
-let gameState = null;
-let tileMap   = {};     // "q,r" → tile
-let entityMap = {};     // "q,r" → [{type, data}]
+      // ── Fetch ──────────────────────────────────────────────────────────────────
 
-// ── Fetch ──────────────────────────────────────────────────────────────────
+      async function fetchMap() {
+        const res = await fetch('/map')
+        mapData = await res.json()
+        tileMap = {}
+        for (const tile of mapData.tiles)
+          tileMap[`${tile.coord.q},${tile.coord.r}`] = tile
+      }
 
-async function fetchMap() {
-  const res = await fetch('/map');
-  mapData = await res.json();
-  tileMap = {};
-  for (const tile of mapData.tiles) tileMap[`${tile.coord.q},${tile.coord.r}`] = tile;
-}
+      async function fetchState() {
+        const res = await fetch('/state/full')
+        gameState = await res.json()
+        entityMap = {}
+        const add = (type, data) => {
+          const k = `${data.position.q},${data.position.r}`
+          ;(entityMap[k] = entityMap[k] || []).push({ type, data })
+        }
+        for (const u of gameState.team1.units || []) add('unit', u)
+        for (const u of gameState.team2.units || []) add('unit', u)
+        for (const b of gameState.team1.buildings || []) add('building', b)
+        for (const b of gameState.team2.buildings || []) add('building', b)
+      }
 
-async function fetchState() {
-  const res = await fetch('/state/full');
-  gameState = await res.json();
-  entityMap = {};
-  const add = (type, data) => {
-    const k = `${data.position.q},${data.position.r}`;
-    (entityMap[k] = entityMap[k] || []).push({ type, data });
-  };
-  for (const u of (gameState.team1.units     || [])) add('unit',     u);
-  for (const u of (gameState.team2.units     || [])) add('unit',     u);
-  for (const b of (gameState.team1.buildings || [])) add('building', b);
-  for (const b of (gameState.team2.buildings || [])) add('building', b);
-}
+      // ── Draw ───────────────────────────────────────────────────────────────────
 
-// ── Draw ───────────────────────────────────────────────────────────────────
+      function drawMap() {
+        if (!mapData) return
 
-function drawMap() {
-  if (!mapData) return;
+        const canvas = document.getElementById('map-canvas')
+        const ctx = canvas.getContext('2d')
 
-  const canvas = document.getElementById('map-canvas');
-  const ctx    = canvas.getContext('2d');
+        // Logical (unscaled) canvas size for a 20×20 odd-r grid.
+        const logicalW = Math.ceil(HEX_SIZE * SQRT3 * 20) + PAD * 2
+        const logicalH = Math.ceil(HEX_SIZE * (1.5 * 19 + 2)) + PAD * 2
 
-  // Logical (unscaled) canvas size for a 20×20 odd-r grid.
-  const logicalW = Math.ceil(HEX_SIZE * SQRT3 * 20)     + PAD * 2;
-  const logicalH = Math.ceil(HEX_SIZE * (1.5 * 19 + 2)) + PAD * 2;
+        // Physical canvas pixels = logical × zoom.
+        canvas.width = Math.ceil(logicalW * zoomScale)
+        canvas.height = Math.ceil(logicalH * zoomScale)
 
-  // Physical canvas pixels = logical × zoom.
-  canvas.width  = Math.ceil(logicalW * zoomScale);
-  canvas.height = Math.ceil(logicalH * zoomScale);
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        ctx.save()
+        ctx.scale(zoomScale, zoomScale)
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.save();
-  ctx.scale(zoomScale, zoomScale);
+        // ── 1. Terrain ──
+        for (const tile of mapData.tiles) {
+          const { x, y } = hexToPixel(tile.coord.q, tile.coord.r)
+          const cx = x + PAD,
+            cy = y + PAD
 
-  // ── 1. Terrain ──
-  for (const tile of mapData.tiles) {
-    const { x, y } = hexToPixel(tile.coord.q, tile.coord.r);
-    const cx = x + PAD, cy = y + PAD;
+          // Fill with fallback colour first (always visible even if image missing).
+          hexPath(ctx, cx, cy)
+          ctx.fillStyle = TERRAIN_COLOR[tile.terrain] || '#444'
+          ctx.fill()
 
-    // Fill with fallback colour first (always visible even if image missing).
-    hexPath(ctx, cx, cy);
-    ctx.fillStyle = TERRAIN_COLOR[tile.terrain] || '#444';
-    ctx.fill();
+          // Overlay PNG image if loaded, clipped to hex shape.
+          const img = images[`assets/terrain/${tile.terrain}.png`]
+          if (img) {
+            ctx.save()
+            hexPath(ctx, cx, cy)
+            ctx.clip()
+            const iw = HEX_SIZE * SQRT3
+            const ih = HEX_SIZE * 2
+            ctx.drawImage(img, cx - iw / 2, cy - ih / 2, iw, ih)
+            ctx.restore()
+          }
 
-    // Overlay PNG image if loaded, clipped to hex shape.
-    const img = images[`assets/terrain/${tile.terrain}.png`];
-    if (img) {
-      ctx.save();
-      hexPath(ctx, cx, cy);
-      ctx.clip();
-      const iw = HEX_SIZE * SQRT3;
-      const ih = HEX_SIZE * 2;
-      ctx.drawImage(img, cx - iw / 2, cy - ih / 2, iw, ih);
-      ctx.restore();
-    }
+          // Grid line.
+          hexPath(ctx, cx, cy)
+          ctx.strokeStyle = 'rgba(0,0,0,0.3)'
+          ctx.lineWidth = 0.5
+          ctx.stroke()
+        }
 
-    // Grid line.
-    hexPath(ctx, cx, cy);
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-    ctx.lineWidth   = 0.5;
-    ctx.stroke();
-  }
+        if (!gameState) return
 
-  if (!gameState) return;
+        // ── 2. Buildings ──
+        for (const b of [
+          ...(gameState.team1.buildings || []),
+          ...(gameState.team2.buildings || []),
+        ]) {
+          const { x, y } = hexToPixel(b.position.q, b.position.r)
+          const cx = x + PAD,
+            cy = y + PAD
+          const img = images[`assets/buildings/team${b.team}/${b.kind}.png`]
 
-  // ── 2. Buildings ──
-  for (const b of [...(gameState.team1.buildings || []), ...(gameState.team2.buildings || [])]) {
-    const { x, y } = hexToPixel(b.position.q, b.position.r);
-    const cx = x + PAD, cy = y + PAD;
-    const img = images[`assets/buildings/team${b.team}/${b.kind}.png`];
+          if (img) {
+            const s = HEX_SIZE * 1.5
+            ctx.drawImage(img, cx - s / 2, cy - s / 2, s, s)
+          } else {
+            // Fallback: coloured square + abbreviation.
+            const s = HEX_SIZE * 0.9
+            ctx.fillStyle = TEAM_COLOR[b.team]
+            ctx.strokeStyle = '#000'
+            ctx.lineWidth = 1
+            ctx.fillRect(cx - s / 2, cy - s / 2, s, s)
+            ctx.strokeRect(cx - s / 2, cy - s / 2, s, s)
+            ctx.fillStyle = '#fff'
+            ctx.font = `bold ${HEX_SIZE * 0.45}px system-ui`
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText(BLDG_ABBR[b.kind] || b.kind[0].toUpperCase(), cx, cy)
+          }
+        }
 
-    if (img) {
-      const s = HEX_SIZE * 1.5;
-      ctx.drawImage(img, cx - s / 2, cy - s / 2, s, s);
-    } else {
-      // Fallback: coloured square + abbreviation.
-      const s = HEX_SIZE * 0.9;
-      ctx.fillStyle   = TEAM_COLOR[b.team];
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth   = 1;
-      ctx.fillRect(cx - s / 2, cy - s / 2, s, s);
-      ctx.strokeRect(cx - s / 2, cy - s / 2, s, s);
-      ctx.fillStyle    = '#fff';
-      ctx.font         = `bold ${HEX_SIZE * 0.45}px system-ui`;
-      ctx.textAlign    = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(BLDG_ABBR[b.kind] || b.kind[0].toUpperCase(), cx, cy);
-    }
-  }
+        // ── 3. Units ──
+        for (const u of [
+          ...(gameState.team1.units || []),
+          ...(gameState.team2.units || []),
+        ]) {
+          const { x, y } = hexToPixel(u.position.q, u.position.r)
+          const cx = x + PAD,
+            cy = y + PAD
+          const img = images[`assets/units/team${u.team}/${u.kind}.png`]
 
-  // ── 3. Units ──
-  for (const u of [...(gameState.team1.units || []), ...(gameState.team2.units || [])]) {
-    const { x, y } = hexToPixel(u.position.q, u.position.r);
-    const cx = x + PAD, cy = y + PAD;
-    const img = images[`assets/units/team${u.team}/${u.kind}.png`];
+          if (img) {
+            const s = HEX_SIZE * 1.4
+            ctx.drawImage(img, cx - s / 2, cy - s / 2, s, s)
+          } else {
+            // Fallback: coloured circle + abbreviation.
+            const radius = HEX_SIZE * 0.55
+            ctx.beginPath()
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+            ctx.fillStyle = TEAM_COLOR[u.team]
+            ctx.fill()
+            ctx.strokeStyle = '#000'
+            ctx.lineWidth = 1
+            ctx.stroke()
+            ctx.fillStyle = '#fff'
+            ctx.font = `bold ${HEX_SIZE * 0.42}px system-ui`
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText(UNIT_ABBR[u.kind] || u.kind[0].toUpperCase(), cx, cy)
+          }
+        }
 
-    if (img) {
-      const s = HEX_SIZE * 1.4;
-      ctx.drawImage(img, cx - s / 2, cy - s / 2, s, s);
-    } else {
-      // Fallback: coloured circle + abbreviation.
-      const radius = HEX_SIZE * 0.55;
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.fillStyle   = TEAM_COLOR[u.team];
-      ctx.fill();
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth   = 1;
-      ctx.stroke();
-      ctx.fillStyle    = '#fff';
-      ctx.font         = `bold ${HEX_SIZE * 0.42}px system-ui`;
-      ctx.textAlign    = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(UNIT_ABBR[u.kind] || u.kind[0].toUpperCase(), cx, cy);
-    }
-  }
+        ctx.restore() // undo ctx.scale(zoomScale)
+      }
 
-  ctx.restore(); // undo ctx.scale(zoomScale)
-}
+      // ── Sidebar ────────────────────────────────────────────────────────────────
 
-// ── Sidebar ────────────────────────────────────────────────────────────────
+      function updateSidebar() {
+        if (!gameState) return
+        document.getElementById('tick-num').textContent = gameState.tick
 
-function updateSidebar() {
-  if (!gameState) return;
-  document.getElementById('tick-num').textContent = gameState.tick;
+        const setTeam = (prefix, team) => {
+          const t = gameState[`team${team}`]
+          document.getElementById(`${prefix}-food`).textContent =
+            t.resources.food
+          document.getElementById(`${prefix}-gold`).textContent =
+            t.resources.gold
+          document.getElementById(`${prefix}-stone`).textContent =
+            t.resources.stone
+          document.getElementById(`${prefix}-wood`).textContent =
+            t.resources.wood
+          document.getElementById(`${prefix}-units`).textContent = (
+            t.units || []
+          ).length
+          document.getElementById(`${prefix}-buildings`).textContent = (
+            t.buildings || []
+          ).length
 
-  const setTeam = (prefix, team) => {
-    const t = gameState[`team${team}`];
-    document.getElementById(`${prefix}-food`).textContent      = t.resources.food;
-    document.getElementById(`${prefix}-gold`).textContent      = t.resources.gold;
-    document.getElementById(`${prefix}-stone`).textContent     = t.resources.stone;
-    document.getElementById(`${prefix}-wood`).textContent      = t.resources.wood;
-    document.getElementById(`${prefix}-units`).textContent     = (t.units     || []).length;
-    document.getElementById(`${prefix}-buildings`).textContent = (t.buildings || []).length;
+          const counts = {}
+          for (const u of t.units || [])
+            counts[u.kind] = (counts[u.kind] || 0) + 1
+          const listEl = document.getElementById(`${prefix}-unit-list`)
+          listEl.innerHTML = ''
+          for (const [kind, n] of Object.entries(counts)) {
+            const row = document.createElement('div')
+            row.className = 'unit-row'
+            row.innerHTML = `<span>${kind.replace(
+              /_/g,
+              ' ',
+            )}</span><span>${n}</span>`
+            listEl.appendChild(row)
+          }
+        }
 
-    const counts = {};
-    for (const u of (t.units || [])) counts[u.kind] = (counts[u.kind] || 0) + 1;
-    const listEl = document.getElementById(`${prefix}-unit-list`);
-    listEl.innerHTML = '';
-    for (const [kind, n] of Object.entries(counts)) {
-      const row = document.createElement('div');
-      row.className = 'unit-row';
-      row.innerHTML = `<span>${kind.replace(/_/g, ' ')}</span><span>${n}</span>`;
-      listEl.appendChild(row);
-    }
-  };
+        setTeam('t1', 1)
+        setTeam('t2', 2)
+      }
 
-  setTeam('t1', 1);
-  setTeam('t2', 2);
-}
+      // ── Drag-to-pan ────────────────────────────────────────────────────────────
 
-// ── Drag-to-pan ────────────────────────────────────────────────────────────
+      const canvas = document.getElementById('map-canvas')
+      const tooltip = document.getElementById('tooltip')
+      const canvasWrap = document.getElementById('canvas-wrap')
 
-const canvas     = document.getElementById('map-canvas');
-const tooltip    = document.getElementById('tooltip');
-const canvasWrap = document.getElementById('canvas-wrap');
+      let isDragging = false
+      let dragStartX = 0,
+        dragStartY = 0
+      let scrollStartX = 0,
+        scrollStartY = 0
 
-let isDragging   = false;
-let dragStartX   = 0, dragStartY   = 0;
-let scrollStartX = 0, scrollStartY = 0;
+      canvas.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return
+        isDragging = true
+        dragStartX = e.clientX
+        dragStartY = e.clientY
+        scrollStartX = canvasWrap.scrollLeft
+        scrollStartY = canvasWrap.scrollTop
+        canvas.style.cursor = 'grabbing'
+        tooltip.style.display = 'none'
+        e.preventDefault()
+      })
 
-canvas.addEventListener('mousedown', e => {
-  if (e.button !== 0) return;
-  isDragging   = true;
-  dragStartX   = e.clientX;
-  dragStartY   = e.clientY;
-  scrollStartX = canvasWrap.scrollLeft;
-  scrollStartY = canvasWrap.scrollTop;
-  canvas.style.cursor = 'grabbing';
-  tooltip.style.display = 'none';
-  e.preventDefault();
-});
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return
+        canvasWrap.scrollLeft = scrollStartX - (e.clientX - dragStartX)
+        canvasWrap.scrollTop = scrollStartY - (e.clientY - dragStartY)
+      })
 
-window.addEventListener('mousemove', e => {
-  if (!isDragging) return;
-  canvasWrap.scrollLeft = scrollStartX - (e.clientX - dragStartX);
-  canvasWrap.scrollTop  = scrollStartY - (e.clientY - dragStartY);
-});
+      window.addEventListener('mouseup', () => {
+        if (!isDragging) return
+        isDragging = false
+        canvas.style.cursor = 'grab'
+      })
 
-window.addEventListener('mouseup', () => {
-  if (!isDragging) return;
-  isDragging = false;
-  canvas.style.cursor = 'grab';
-});
+      // ── Tooltip on hover ────────────────────────────────────────────────────────
 
-// ── Tooltip on hover ────────────────────────────────────────────────────────
+      canvas.addEventListener('mousemove', (e) => {
+        if (isDragging) return
 
-canvas.addEventListener('mousemove', e => {
-  if (isDragging) return;
+        const rect = canvas.getBoundingClientRect()
+        // Convert screen px → logical canvas coords (undo zoom, undo PAD offset).
+        const px = (e.clientX - rect.left) / zoomScale - PAD
+        const py = (e.clientY - rect.top) / zoomScale - PAD
+        const { q, r } = pixelToHex(px, py)
+        const tile = tileMap[`${q},${r}`]
+        const entities = entityMap[`${q},${r}`]
 
-  const rect = canvas.getBoundingClientRect();
-  // Convert screen px → logical canvas coords (undo zoom, undo PAD offset).
-  const px = (e.clientX - rect.left) / zoomScale - PAD;
-  const py = (e.clientY - rect.top)  / zoomScale - PAD;
-  const { q, r } = pixelToHex(px, py);
-  const tile     = tileMap[`${q},${r}`];
-  const entities = entityMap[`${q},${r}`];
+        if (!tile || q < 0 || q >= 20 || r < 0 || r >= 20) {
+          tooltip.style.display = 'none'
+          return
+        }
 
-  if (!tile || q < 0 || q >= 20 || r < 0 || r >= 20) {
-    tooltip.style.display = 'none';
-    return;
-  }
+        let html = `<b>(${q}, ${r})</b> ${tile.terrain.replace(/_/g, ' ')}`
+        if (entities) {
+          for (const { type, data } of entities) {
+            html += `<br>Team ${data.team} · ${data.kind.replace(
+              /_/g,
+              ' ',
+            )} HP ${data.hp}/${data.max_hp}`
+          }
+        }
 
-  let html = `<b>(${q}, ${r})</b> ${tile.terrain.replace(/_/g, ' ')}`;
-  if (entities) {
-    for (const { type, data } of entities) {
-      html += `<br>Team ${data.team} · ${data.kind.replace(/_/g,' ')} HP ${data.hp}/${data.max_hp}`;
-    }
-  }
+        tooltip.innerHTML = html
+        tooltip.style.display = 'block'
+        tooltip.style.left = e.clientX + 14 + 'px'
+        tooltip.style.top = e.clientY + 14 + 'px'
+      })
 
-  tooltip.innerHTML     = html;
-  tooltip.style.display = 'block';
-  tooltip.style.left    = (e.clientX + 14) + 'px';
-  tooltip.style.top     = (e.clientY + 14) + 'px';
-});
+      canvas.addEventListener('mouseleave', () => {
+        tooltip.style.display = 'none'
+      })
 
-canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+      // ── Live dot ───────────────────────────────────────────────────────────────
 
-// ── Live dot ───────────────────────────────────────────────────────────────
+      function flashDot() {
+        const dot = document.getElementById('live-dot')
+        dot.classList.add('live')
+        setTimeout(() => dot.classList.remove('live'), 600)
+      }
 
-function flashDot() {
-  const dot = document.getElementById('live-dot');
-  dot.classList.add('live');
-  setTimeout(() => dot.classList.remove('live'), 600);
-}
+      // ── Main loop ──────────────────────────────────────────────────────────────
 
-// ── Main loop ──────────────────────────────────────────────────────────────
+      async function fetchAndDraw() {
+        try {
+          if (!mapData) await fetchMap()
+          await fetchState()
+          drawMap()
+          updateSidebar()
+          flashDot()
+        } catch (err) {
+          console.error('fetch error', err)
+        }
+      }
 
-async function fetchAndDraw() {
-  try {
-    if (!mapData) await fetchMap();
-    await fetchState();
-    drawMap();
-    updateSidebar();
-    flashDot();
-  } catch (err) {
-    console.error('fetch error', err);
-  }
-}
+      // Mouse-wheel zoom on the canvas.
+      canvas.addEventListener(
+        'wheel',
+        (e) => {
+          e.preventDefault()
+          adjustZoom(e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)
+        },
+        { passive: false },
+      )
 
-// Mouse-wheel zoom on the canvas.
-canvas.addEventListener('wheel', e => {
-  e.preventDefault();
-  adjustZoom(e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP);
-}, { passive: false });
+      // Initialise slider + label from restored zoom.
+      document.getElementById('zoom-slider').value = zoomScale
+      document.getElementById('zoom-label').textContent =
+        Math.round(zoomScale * 100) + '%'
 
-// Initialise slider + label from restored zoom.
-document.getElementById('zoom-slider').value = zoomScale;
-document.getElementById('zoom-label').textContent = Math.round(zoomScale * 100) + '%';
-
-// Preload assets and kick off the first fetch in parallel.
-// Re-draw after assets finish in case the first draw used fallbacks.
-preloadAssets().then(() => { if (mapData) drawMap(); });
-fetchAndDraw();
-setInterval(fetchAndDraw, 3000);
-</script>
-</body>
+      // Preload assets and kick off the first fetch in parallel.
+      // Re-draw after assets finish in case the first draw used fallbacks.
+      preloadAssets().then(() => {
+        if (mapData) drawMap()
+      })
+      fetchAndDraw()
+      setInterval(fetchAndDraw, 3000)
+    </script>
+  </body>
 </html>
