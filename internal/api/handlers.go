@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/jason9075/agents_of_empires/internal/entity"
-	"github.com/jason9075/agents_of_empires/internal/hex"
-	"github.com/jason9075/agents_of_empires/internal/terrain"
-	"github.com/jason9075/agents_of_empires/internal/ticker"
-	"github.com/jason9075/agents_of_empires/internal/world"
+	"github.com/jason9075/agents_of_dynasties/internal/entity"
+	"github.com/jason9075/agents_of_dynasties/internal/hex"
+	"github.com/jason9075/agents_of_dynasties/internal/terrain"
+	"github.com/jason9075/agents_of_dynasties/internal/ticker"
+	"github.com/jason9075/agents_of_dynasties/internal/world"
 )
 
 // --- Response shapes ---

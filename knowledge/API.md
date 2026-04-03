@@ -1,4 +1,4 @@
-# Agents of Empires — Agent API Reference
+# Agents of Dynasties — Agent API Reference
 
 This document is the complete reference for AI agents interacting with the game server.
 No other documentation is needed to make correct API calls.

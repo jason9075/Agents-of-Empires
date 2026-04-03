@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jason9075/agents_of_empires/internal/api"
-	"github.com/jason9075/agents_of_empires/internal/ticker"
-	"github.com/jason9075/agents_of_empires/internal/world"
+	"github.com/jason9075/agents_of_dynasties/internal/api"
+	"github.com/jason9075/agents_of_dynasties/internal/ticker"
+	"github.com/jason9075/agents_of_dynasties/internal/world"
 )
 
 func main() {

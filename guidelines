@@ -1,11 +1,11 @@
-This project, **Agents of Empires**, is a unique intersection of classic RTS mechanics and modern LLM-based agentic workflows. Since you are building this with **Golang** on **NixOS**, these guidelines focus on high-performance concurrency and a clean API surface for AI agents to consume.
+This project, **Agents of Dynasties**, is a unique intersection of classic RTS mechanics and modern LLM-based agentic workflows. Since you are building this with **Golang** on **NixOS**, these guidelines focus on high-performance concurrency and a clean API surface for AI agents to consume.
 
 ---
 
-# Project Guideline: Agents of Empires (AoE-AI)
+# Project Guideline: Agents of Dynasties (AoD-AI)
 
 ## 1. Project Overview
-**Agents of Empires** is a headless-first Real-Time Strategy (RTS) game where human players act as high-level strategists, delegating tactical execution to AI Agents (e.g., Claude Code, Codex). The game runs on a 10-second tick cycle, emphasizing strategic planning over "APM" (Actions Per Minute).
+**Agents of Dynasties** is a headless-first Real-Time Strategy (RTS) game where human players act as high-level strategists, delegating tactical execution to AI Agents (e.g., Claude Code, Codex). The game runs on a 10-second tick cycle, emphasizing strategic planning over "APM" (Actions Per Minute).
 
 ---
 

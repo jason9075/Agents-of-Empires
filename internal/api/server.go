@@ -3,8 +3,8 @@ package api
 import (
 	"net/http"
 
-	"github.com/jason9075/agents_of_empires/internal/ticker"
-	"github.com/jason9075/agents_of_empires/internal/world"
+	"github.com/jason9075/agents_of_dynasties/internal/ticker"
+	"github.com/jason9075/agents_of_dynasties/internal/world"
 )
 
 // Server is the HTTP API server for the game.

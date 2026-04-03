@@ -1,6 +1,6 @@
 package entity
 
-import "github.com/jason9075/agents_of_empires/internal/hex"
+import "github.com/jason9075/agents_of_dynasties/internal/hex"
 
 // EntityID uniquely identifies any entity in the world.
 type EntityID uint64

@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/jason9075/agents_of_empires/internal/world"
+	"github.com/jason9075/agents_of_dynasties/internal/world"
 )
 
 const DefaultInterval = 10 * time.Second

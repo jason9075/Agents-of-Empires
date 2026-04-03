@@ -1,6 +1,6 @@
 package entity
 
-import "github.com/jason9075/agents_of_empires/internal/hex"
+import "github.com/jason9075/agents_of_dynasties/internal/hex"
 
 // UnitKind identifies the type of a unit.
 type UnitKind uint8

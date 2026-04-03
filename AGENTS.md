@@ -4,12 +4,12 @@ This file provides guidance to coding agents working in this repository. It is a
 
 ## Project Overview
 
-**Agents of Empires** is a headless-first RTS game where AI agents act as tactical controllers through HTTP/WebSocket APIs. The backend is written in Go and the game advances on a 10-second tick cycle.
+**Agents of Dynasties** is a headless-first RTS game where AI agents act as tactical controllers through HTTP/WebSocket APIs. The backend is written in Go and the game advances on a 10-second tick cycle.
 
 Current module path:
 
 ```text
-github.com/jason9075/agents_of_empires
+github.com/jason9075/agents_of_dynasties
 ```
 
 ## Development Environment

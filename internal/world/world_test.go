@@ -3,8 +3,8 @@ package world
 import (
 	"testing"
 
-	"github.com/jason9075/agents_of_empires/internal/entity"
-	"github.com/jason9075/agents_of_empires/internal/hex"
+	"github.com/jason9075/agents_of_dynasties/internal/entity"
+	"github.com/jason9075/agents_of_dynasties/internal/hex"
 )
 
 func TestNewWorld_TileCount(t *testing.T) {

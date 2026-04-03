@@ -5,9 +5,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/jason9075/agents_of_empires/internal/entity"
-	"github.com/jason9075/agents_of_empires/internal/hex"
-	"github.com/jason9075/agents_of_empires/internal/terrain"
+	"github.com/jason9075/agents_of_dynasties/internal/entity"
+	"github.com/jason9075/agents_of_dynasties/internal/hex"
+	"github.com/jason9075/agents_of_dynasties/internal/terrain"
 )
 
 // Resources tracks a team's current stockpile.

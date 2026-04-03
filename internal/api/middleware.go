@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/jason9075/agents_of_empires/internal/entity"
+	"github.com/jason9075/agents_of_dynasties/internal/entity"
 )
 
 // teamFromRequest reads the X-Team-ID header and returns the corresponding Team.

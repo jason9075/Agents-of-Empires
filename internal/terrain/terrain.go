@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/jason9075/agents_of_empires/internal/hex"
+	"github.com/jason9075/agents_of_dynasties/internal/hex"
 )
 
 // ResourceType identifies a gatherable resource.

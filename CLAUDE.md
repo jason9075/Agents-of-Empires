@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Agents of Empires** is a headless-first RTS game where AI agents (LLMs) act as tactical controllers, communicating via a REST/WebSocket API. The game runs on a 10-second tick cycle. This is a Go backend project.
+**Agents of Dynasties** is a headless-first RTS game where AI agents (LLMs) act as tactical controllers, communicating via a REST/WebSocket API. The game runs on a 10-second tick cycle. This is a Go backend project.
 
 ## Development Environment
 

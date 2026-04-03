@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jason9075/agents_of_empires/internal/entity"
-	"github.com/jason9075/agents_of_empires/internal/hex"
+	"github.com/jason9075/agents_of_dynasties/internal/entity"
+	"github.com/jason9075/agents_of_dynasties/internal/hex"
 )
 
 // CommandKind identifies the type of action an agent is requesting.
