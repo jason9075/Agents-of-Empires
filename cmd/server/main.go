@@ -19,6 +19,7 @@ func main() {
 	addr := flag.String("addr", ":8080", "HTTP listen address")
 	seed := flag.Int64("seed", 42, "World generation seed")
 	tickInterval := flag.Duration("tick", ticker.DefaultInterval, "Game tick interval")
+	webDir := flag.String("web-dir", "./web", "Directory of static frontend files")
 	flag.Parse()
 
 	slog.Info("initializing world", "seed", *seed)
@@ -31,7 +32,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    *addr,
-		Handler: api.NewServer(w, queue),
+		Handler: api.NewServer(w, queue, *webDir),
 	}
 
 	// Graceful shutdown on SIGINT / SIGTERM.

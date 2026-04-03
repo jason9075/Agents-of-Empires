@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asset Test — Agents of Empires</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #111;
+      color: #eee;
+      padding: 2rem;
+    }
+
+    h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #888; font-size: 0.85rem; margin-bottom: 2rem; }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin: 2rem 0 1rem;
+      border-bottom: 1px solid #333;
+      padding-bottom: 0.4rem;
+    }
+
+    h2 {
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #aaa;
+    }
+
+    .team-toggle {
+      display: flex;
+      gap: 0;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #444;
+    }
+
+    .team-toggle button {
+      background: #222;
+      color: #888;
+      border: none;
+      padding: 3px 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .team-toggle button.active {
+      background: #3a5fa0;
+      color: #fff;
+    }
+
+    .team-toggle button:first-child { border-right: 1px solid #444; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      background: #1e1e1e;
+      border-radius: 8px;
+      padding: 0.75rem;
+      border: 2px solid #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      transition: border-color 0.2s;
+    }
+    .card.ok    { border-color: #2d6a2d; }
+    .card.error { border-color: #8b2020; }
+
+    .img-wrap {
+      width: 96px;
+      height: 96px;
+      background: #2a2a2a;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .img-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .badge {
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      font-size: 0.6rem;
+      font-weight: 700;
+      padding: 2px 5px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge.missing { background: #8b2020; color: #fcc; }
+    .badge.ok      { background: #2d6a2d; color: #afa; }
+
+    .card-name {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .card-path {
+      font-size: 0.65rem;
+      color: #666;
+      text-align: center;
+      word-break: break-all;
+    }
+
+    .summary {
+      margin-top: 2rem;
+      font-size: 0.85rem;
+      color: #888;
+    }
+    .summary .ok-count  { font-weight: 700; color: #5a5; }
+    .summary .err-count { font-weight: 700; color: #c55; }
+  </style>
+</head>
+<body>
+
+<h1>Asset Test</h1>
+<p class="subtitle">Each card shows the expected image path. Red = missing. Green = loaded.</p>
+
+<!-- Units -->
+<div class="section-header">
+  <h2>Units</h2>
+  <div class="team-toggle" id="units-toggle">
+    <button class="active" onclick="switchTeam('units', 1)">Team 1</button>
+    <button onclick="switchTeam('units', 2)">Team 2</button>
+  </div>
+</div>
+<div class="grid" id="units-grid"></div>
+
+<!-- Buildings -->
+<div class="section-header">
+  <h2>Buildings</h2>
+  <div class="team-toggle" id="buildings-toggle">
+    <button class="active" onclick="switchTeam('buildings', 1)">Team 1</button>
+    <button onclick="switchTeam('buildings', 2)">Team 2</button>
+  </div>
+</div>
+<div class="grid" id="buildings-grid"></div>
+
+<!-- Terrain (no team) -->
+<div class="section-header">
+  <h2>Terrain</h2>
+</div>
+<div class="grid" id="terrain-grid"></div>
+
+<p class="summary" id="summary"></p>
+
+<script>
+  const UNITS = [
+    { kind: 'villager',      label: 'Villager' },
+    { kind: 'infantry',      label: 'Infantry' },
+    { kind: 'spearman',      label: 'Spearman' },
+    { kind: 'scout_cavalry', label: 'Scout Cavalry' },
+    { kind: 'paladin',       label: 'Paladin' },
+    { kind: 'archer',        label: 'Archer' },
+  ];
+
+  const BUILDINGS = [
+    { kind: 'town_center',   label: 'Town Center' },
+    { kind: 'barracks',      label: 'Barracks' },
+    { kind: 'stable',        label: 'Stable' },
+    { kind: 'archery_range', label: 'Archery Range' },
+  ];
+
+  const TERRAIN = [
+    { kind: 'plain',      label: 'Plain' },
+    { kind: 'forest',     label: 'Forest' },
+    { kind: 'mountain',   label: 'Mountain' },
+    { kind: 'lake',       label: 'Lake' },
+    { kind: 'gold_mine',  label: 'Gold Mine' },
+    { kind: 'stone_mine', label: 'Stone Mine' },
+    { kind: 'orchard',    label: 'Orchard' },
+    { kind: 'deer',       label: 'Deer' },
+  ];
+
+  // track total loaded per (section, team) so summary stays accurate
+  // key: "units-1", "units-2", "buildings-1", "buildings-2", "terrain"
+  const counts = {};
+
+  function key(section, team) {
+    return team ? `${section}-${team}` : section;
+  }
+
+  function updateSummary() {
+    // Count only currently-visible sections
+    const activeTeams = { units: currentTeam.units, buildings: currentTeam.buildings };
+    let totalLoaded = 0, totalCards = 0;
+
+    for (const [section, team] of Object.entries(activeTeams)) {
+      const k = key(section, team);
+      totalLoaded += counts[k]?.loaded ?? 0;
+      totalCards  += counts[k]?.total  ?? 0;
+    }
+    // terrain always counted
+    totalLoaded += counts['terrain']?.loaded ?? 0;
+    totalCards  += counts['terrain']?.total  ?? 0;
+
+    document.getElementById('summary').innerHTML =
+      `<span class="ok-count">${totalLoaded} / ${totalCards}</span> assets found &nbsp;|&nbsp; ` +
+      `<span class="err-count">${totalCards - totalLoaded}</span> missing`;
+  }
+
+  // Make a single card; path is computed at creation time and never changes.
+  function makeCard(entity, pathPrefix, section, team) {
+    const path = `${pathPrefix}${entity.kind}.png`;
+    const k = key(section, team);
+    counts[k] = counts[k] ?? { total: 0, loaded: 0 };
+    counts[k].total++;
+
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'img-wrap';
+
+    const img = document.createElement('img');
+    img.alt = entity.label;
+    img.src = path;
+
+    const badge = document.createElement('span');
+    badge.className = 'badge missing';
+    badge.textContent = 'Missing';
+
+    img.onload = () => {
+      card.classList.add('ok');
+      badge.className = 'badge ok';
+      badge.textContent = 'OK';
+      counts[k].loaded++;
+      updateSummary();
+    };
+
+    img.onerror = () => {
+      card.classList.add('error');
+      updateSummary();
+    };
+
+    wrap.appendChild(img);
+    wrap.appendChild(badge);
+
+    const name = document.createElement('div');
+    name.className = 'card-name';
+    name.textContent = entity.label;
+
+    const pathEl = document.createElement('div');
+    pathEl.className = 'card-path';
+    pathEl.textContent = path;
+
+    card.appendChild(wrap);
+    card.appendChild(name);
+    card.appendChild(pathEl);
+    return card;
+  }
+
+  // Build a grid for a given section + team, store as data attribute.
+  function buildGrid(gridEl, entities, basePrefix, section, team) {
+    const frag = document.createDocumentFragment();
+    entities.forEach(e => frag.appendChild(makeCard(e, `${basePrefix}team${team}/`, section, team)));
+    gridEl.appendChild(frag);
+  }
+
+  // Switch team buttons + swap visible cards.
+  const currentTeam = { units: 1, buildings: 1 };
+
+  // Pre-build both teams for units and buildings so switching is instant.
+  function initTeamedSection(section, entities, basePrefix) {
+    const gridEl = document.getElementById(`${section}-grid`);
+
+    // Wrap each team's cards in a div for easy show/hide.
+    for (const team of [1, 2]) {
+      const wrapper = document.createElement('div');
+      wrapper.id = `${section}-team${team}`;
+      wrapper.style.display = team === 1 ? 'contents' : 'none';
+      buildGrid(wrapper, entities, basePrefix, section, team);
+      gridEl.appendChild(wrapper);
+    }
+  }
+
+  function switchTeam(section, team) {
+    if (currentTeam[section] === team) return;
+    currentTeam[section] = team;
+
+    // Update wrapper visibility.
+    document.getElementById(`${section}-team1`).style.display = team === 1 ? 'contents' : 'none';
+    document.getElementById(`${section}-team2`).style.display = team === 2 ? 'contents' : 'none';
+
+    // Update toggle button styles.
+    const toggle = document.getElementById(`${section}-toggle`);
+    toggle.querySelectorAll('button').forEach((btn, i) => {
+      btn.classList.toggle('active', i + 1 === team);
+    });
+
+    updateSummary();
+  }
+
+  // Init teamed sections.
+  initTeamedSection('units', UNITS, 'assets/units/');
+  initTeamedSection('buildings', BUILDINGS, 'assets/buildings/');
+
+  // Init terrain (no teams). makeCard handles counting via key('terrain', null).
+  const terrainGrid = document.getElementById('terrain-grid');
+  TERRAIN.forEach(t => terrainGrid.appendChild(makeCard(t, 'assets/terrain/', 'terrain', null)));
+
+  updateSummary();
+</script>
+</body>
+</html>

@@ -13,12 +13,16 @@ type Server struct {
 }
 
 // NewServer wires up all routes and returns a ready-to-serve Server.
-func NewServer(w *world.World, q *ticker.Queue) *Server {
+// webDir is the path to the directory of static files (e.g. "./web").
+func NewServer(w *world.World, q *ticker.Queue, webDir string) *Server {
 	mux := http.NewServeMux()
 
 	mux.Handle("/map", &mapHandler{w: w})
 	mux.Handle("/state", &stateHandler{w: w})
 	mux.Handle("/command", &commandHandler{w: w, q: q})
+
+	// Serve static frontend files. Registered last so API routes take priority.
+	mux.Handle("/", http.FileServer(http.Dir(webDir)))
 
 	return &Server{mux: mux}
 }
