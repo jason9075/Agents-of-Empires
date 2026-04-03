@@ -12,7 +12,7 @@ import (
 func TestNewWorld_TileCount(t *testing.T) {
 	w := NewWorld(42)
 	tiles := w.AllTiles()
-	want := hex.GridSize * hex.GridSize // 20×20 = 400
+	want := hex.GridWidth * hex.GridHeight // 20×15 = 300
 	if len(tiles) != want {
 		t.Fatalf("expected %d tiles, got %d", want, len(tiles))
 	}
@@ -35,6 +35,24 @@ func TestNewWorld_StartingUnits(t *testing.T) {
 		if len(units) != 2 {
 			t.Errorf("team %d: expected 2 starting villagers, got %d", team, len(units))
 		}
+		tc := mustTownCenterPos(t, w, team)
+		seen := map[hex.Coord]bool{}
+		for _, u := range units {
+			if !hex.InBounds(u.Position()) {
+				t.Fatalf("team %d villager out of bounds at %v", team, u.Position())
+			}
+			tile, ok := w.Tile(u.Position())
+			if !ok || !tile.Terrain.Passable() {
+				t.Fatalf("team %d villager spawned on non-passable tile %v", team, u.Position())
+			}
+			if hex.Distance(tc, u.Position()) > 3 {
+				t.Fatalf("team %d villager spawned too far from town center: tc=%v villager=%v", team, tc, u.Position())
+			}
+			if seen[u.Position()] {
+				t.Fatalf("team %d has duplicate villager spawn at %v", team, u.Position())
+			}
+			seen[u.Position()] = true
+		}
 	}
 }
 
@@ -55,8 +73,8 @@ func TestAllTiles_Ordered(t *testing.T) {
 	w := NewWorld(42)
 	tiles := w.AllTiles()
 	for i := 1; i < len(tiles); i++ {
-		prev := tiles[i-1].Coord.Q*hex.GridSize + tiles[i-1].Coord.R
-		cur := tiles[i].Coord.Q*hex.GridSize + tiles[i].Coord.R
+		prev := tiles[i-1].Coord.Q*hex.GridHeight + tiles[i-1].Coord.R
+		cur := tiles[i].Coord.Q*hex.GridHeight + tiles[i].Coord.R
 		if cur <= prev {
 			t.Fatalf("tiles not sorted at index %d: %v >= %v", i, tiles[i-1].Coord, tiles[i].Coord)
 		}
@@ -133,9 +151,9 @@ func TestNewWorld_TownCentersConnectedByPlainPath(t *testing.T) {
 	end := mustTownCenterPos(t, w, entity.Team2)
 
 	for name, waypoint := range map[string]hex.Coord{
-		"top":    {Q: 10, R: 2},
-		"middle": {Q: 10, R: 10},
-		"bottom": {Q: 10, R: 18},
+		"top":    {Q: 10, R: 1},
+		"middle": {Q: 10, R: 7},
+		"bottom": {Q: 10, R: 13},
 	} {
 		if !plainPathExistsVia(w, start, waypoint, end) {
 			t.Fatalf("expected %s lane plain path between town centers %v and %v via %v", name, start, end, waypoint)
@@ -226,9 +244,9 @@ func TestNewWorld_RulesHoldAcrossSeeds(t *testing.T) {
 			start := mustTownCenterPos(t, w, entity.Team1)
 			end := mustTownCenterPos(t, w, entity.Team2)
 			for name, waypoint := range map[string]hex.Coord{
-				"top":    {Q: 10, R: 2},
-				"middle": {Q: 10, R: 10},
-				"bottom": {Q: 10, R: 18},
+				"top":    {Q: 10, R: 1},
+				"middle": {Q: 10, R: 7},
+				"bottom": {Q: 10, R: 13},
 			} {
 				if !plainPathExistsVia(w, start, waypoint, end) {
 					t.Fatalf("seed %d missing %s lane path between town centers", seed, name)

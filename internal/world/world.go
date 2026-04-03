@@ -40,7 +40,7 @@ type World struct {
 // NewWorld creates and seeds a new world using the given seed.
 func NewWorld(seed int64) *World {
 	w := &World{
-		Tiles:     make(map[hex.Coord]terrain.Tile, hex.GridSize*hex.GridSize),
+		Tiles:     make(map[hex.Coord]terrain.Tile, hex.GridWidth*hex.GridHeight),
 		Units:     make(map[entity.EntityID]*entity.Unit),
 		Buildings: make(map[entity.EntityID]*entity.Building),
 		TeamRes: map[entity.Team]Resources{
@@ -60,7 +60,7 @@ func (w *World) Tile(c hex.Coord) (terrain.Tile, bool) {
 	return t, ok
 }
 
-// AllTiles returns a stable-ordered slice of all tiles (sorted by Q*GridSize+R).
+// AllTiles returns a stable-ordered slice of all tiles (sorted by Q*GridHeight+R).
 func (w *World) AllTiles() []terrain.Tile {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
@@ -69,8 +69,8 @@ func (w *World) AllTiles() []terrain.Tile {
 		tiles = append(tiles, t)
 	}
 	sort.Slice(tiles, func(i, j int) bool {
-		ii := tiles[i].Coord.Q*hex.GridSize + tiles[i].Coord.R
-		jj := tiles[j].Coord.Q*hex.GridSize + tiles[j].Coord.R
+		ii := tiles[i].Coord.Q*hex.GridHeight + tiles[i].Coord.R
+		jj := tiles[j].Coord.Q*hex.GridHeight + tiles[j].Coord.R
 		return ii < jj
 	})
 	return tiles

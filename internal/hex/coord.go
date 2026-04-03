@@ -1,12 +1,15 @@
 package hex
 
-// Coord is an axial hex coordinate. The grid is 20×20 with 0 ≤ Q < 20, 0 ≤ R < 20.
+// Coord is an axial hex coordinate. The grid is 20×15 with 0 ≤ Q < 20, 0 ≤ R < 15.
 type Coord struct {
 	Q int `json:"q"`
 	R int `json:"r"`
 }
 
-const GridSize = 20
+const (
+	GridWidth  = 20
+	GridHeight = 15
+)
 
 // directions are the six axial neighbour offsets.
 var directions = [6]Coord{
@@ -23,9 +26,9 @@ func (c Coord) Neighbors() [6]Coord {
 	return out
 }
 
-// InBounds reports whether c lies within the 20×20 grid.
+// InBounds reports whether c lies within the 20×15 grid.
 func InBounds(c Coord) bool {
-	return c.Q >= 0 && c.Q < GridSize && c.R >= 0 && c.R < GridSize
+	return c.Q >= 0 && c.Q < GridWidth && c.R >= 0 && c.R < GridHeight
 }
 
 // Distance returns the hex grid distance between a and b.

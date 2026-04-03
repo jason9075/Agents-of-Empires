@@ -19,6 +19,9 @@
         --bg: #0d0d0d;
         --panel: #161616;
         --border: #2a2a2a;
+        --glass-base: rgba(14, 18, 22, 0.38);
+        --glass-strong: rgba(28, 36, 44, 0.26);
+        --glass-border: rgba(255, 255, 255, 0.16);
       }
 
       body {
@@ -77,9 +80,13 @@
         border: 1px solid #444;
         color: #aaa;
         padding: 3px 10px;
+        width: auto;
+        min-width: 70px;
+        height: auto;
         border-radius: 5px;
         font-size: 0.75rem;
         cursor: pointer;
+        flex: 0 0 auto;
       }
 
       #refresh-btn:hover {
@@ -93,9 +100,11 @@
         align-items: center;
         gap: 0.4rem;
         margin-left: auto;
+        justify-content: flex-end;
+        flex-shrink: 0;
       }
 
-      .zoom-controls button {
+      .zoom-controls button:not(#refresh-btn) {
         background: #222;
         border: 1px solid #444;
         color: #ccc;
@@ -108,13 +117,14 @@
         flex-shrink: 0;
       }
 
-      .zoom-controls button:hover {
+      .zoom-controls button:not(#refresh-btn):hover {
         background: #333;
         color: #fff;
       }
 
       #zoom-slider {
         width: 90px;
+        min-width: 90px;
         accent-color: #4a90e2;
         cursor: pointer;
       }
@@ -131,6 +141,7 @@
         display: flex;
         flex: 1;
         overflow: hidden;
+        position: relative;
       }
 
       /* ── Canvas area ── */
@@ -151,16 +162,47 @@
       /* ── Sidebar ── */
       #sidebar {
         width: 220px;
-        flex-shrink: 0;
-        border-left: 1px solid var(--border);
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 20;
+        border-left: 1px solid var(--glass-border);
+        background-color: var(--glass-base);
+        background-image: linear-gradient(
+          180deg,
+          var(--glass-strong),
+          rgba(8, 10, 12, 0.16)
+        );
+        backdrop-filter: blur(14px) saturate(1.1);
+        -webkit-backdrop-filter: blur(14px) saturate(1.1);
+        box-shadow: -16px 0 40px rgba(0, 0, 0, 0.28);
         display: flex;
         flex-direction: column;
-        overflow-y: auto;
+        overflow-y: visible;
+        isolation: isolate;
+        transition:
+          transform 0.2s ease,
+          opacity 0.2s ease,
+          width 0.2s ease;
+      }
+
+      #sidebar.hidden {
+        width: 0;
+        opacity: 1;
+        transform: translateX(0);
+        border-left: none;
+        overflow: visible;
+        box-shadow: none;
+      }
+
+      #sidebar.hidden > :not(#sidebar-toggle) {
+        display: none;
       }
 
       .team-panel {
         padding: 0.75rem;
-        border-bottom: 1px solid var(--border);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       }
 
       .team-header {
@@ -214,7 +256,7 @@
       /* ── Legend ── */
       #legend {
         padding: 0.75rem;
-        border-top: 1px solid var(--border);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
         margin-top: auto;
       }
 
@@ -257,6 +299,83 @@
         max-width: 180px;
         line-height: 1.5;
       }
+
+      #sidebar-toggle {
+        position: absolute;
+        top: 1rem;
+        right: 100%;
+        width: 36px;
+        height: 36px;
+        min-height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--glass-base);
+        background-image: linear-gradient(
+          180deg,
+          var(--glass-strong),
+          rgba(8, 10, 12, 0.16)
+        );
+        backdrop-filter: blur(14px) saturate(1.1);
+        -webkit-backdrop-filter: blur(14px) saturate(1.1);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-left: 1px solid rgba(255, 255, 255, 0.16);
+        border-right: none;
+        color: #ddd;
+        padding: 0;
+        border-radius: 10px 0 0 10px;
+        font-size: 0.72rem;
+        line-height: 1;
+        cursor: pointer;
+        font-size: 1.1rem;
+        box-shadow: -10px 10px 24px rgba(0, 0, 0, 0.28);
+        z-index: 25;
+      }
+
+      #sidebar-toggle:hover {
+        background: linear-gradient(
+          180deg,
+          rgba(48, 56, 64, 0.96),
+          rgba(26, 31, 36, 0.96)
+        );
+      }
+
+      #sidebar.hidden #sidebar-toggle {
+        right: 100%;
+        width: 36px;
+        height: 36px;
+        min-height: 36px;
+        border-radius: 10px 0 0 10px;
+        overflow: visible;
+      }
+
+      @media (max-width: 900px) {
+        #topbar {
+          flex-wrap: wrap;
+          align-items: flex-start;
+          gap: 0.75rem;
+        }
+
+        .zoom-controls {
+          margin-left: 0;
+          width: 100%;
+          justify-content: flex-start;
+        }
+
+        #sidebar {
+          width: 210px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        #sidebar-toggle {
+          top: 0.75rem;
+          right: 100%;
+          width: 32px;
+          height: 32px;
+          min-height: 32px;
+        }
+      }
     </style>
   </head>
 
@@ -288,6 +407,14 @@
       </div>
 
       <div id="sidebar">
+        <button
+          id="sidebar-toggle"
+          onclick="toggleSidebar()"
+          aria-label="Hide sidebar"
+          title="Toggle sidebar"
+        >
+          ❯
+        </button>
         <!-- Team 1 -->
         <div class="team-panel">
           <div class="team-header">
@@ -422,7 +549,7 @@
 
       // ── Hex math — odd-r offset, pointy-top ────────────────────────────────────
       // Rows go left-to-right; odd rows are shifted right by half a hex.
-      // This produces a visually square 20×20 grid.
+      // The map dimensions come from the API response.
 
       function hexToPixel(q, r) {
         return {
@@ -513,6 +640,7 @@
       let gameState = null
       let tileMap = {} // "q,r" → tile
       let entityMap = {} // "q,r" → [{type, data}]
+      let sidebarVisible = true
 
       // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -546,9 +674,12 @@
         const canvas = document.getElementById('map-canvas')
         const ctx = canvas.getContext('2d')
 
-        // Logical (unscaled) canvas size for a 20×20 odd-r grid.
-        const logicalW = Math.ceil(HEX_SIZE * SQRT3 * 20) + PAD * 2
-        const logicalH = Math.ceil(HEX_SIZE * (1.5 * 19 + 2)) + PAD * 2
+        const mapWidth = mapData.width || 20
+        const mapHeight = mapData.height || 15
+
+        // Logical (unscaled) canvas size for an odd-r grid with API-driven dimensions.
+        const logicalW = Math.ceil(HEX_SIZE * SQRT3 * (mapWidth + 0.5)) + PAD * 2
+        const logicalH = Math.ceil(HEX_SIZE * (1.5 * (mapHeight - 1) + 2)) + PAD * 2
 
         // Physical canvas pixels = logical × zoom.
         canvas.width = Math.ceil(logicalW * zoomScale)
@@ -696,6 +827,18 @@
         setTeam('t2', 2)
       }
 
+      function toggleSidebar() {
+        sidebarVisible = !sidebarVisible
+        const sidebar = document.getElementById('sidebar')
+        const button = document.getElementById('sidebar-toggle')
+        sidebar.classList.toggle('hidden', !sidebarVisible)
+        button.textContent = sidebarVisible ? '❯' : '❮'
+        button.setAttribute(
+          'aria-label',
+          sidebarVisible ? 'Hide sidebar' : 'Show sidebar',
+        )
+      }
+
       // ── Drag-to-pan ────────────────────────────────────────────────────────────
 
       const canvas = document.getElementById('map-canvas')
@@ -745,7 +888,13 @@
         const tile = tileMap[`${q},${r}`]
         const entities = entityMap[`${q},${r}`]
 
-        if (!tile || q < 0 || q >= 20 || r < 0 || r >= 20) {
+        if (
+          !tile ||
+          q < 0 ||
+          q >= (mapData?.width || 20) ||
+          r < 0 ||
+          r >= (mapData?.height || 15)
+        ) {
           tooltip.style.display = 'none'
           return
         }

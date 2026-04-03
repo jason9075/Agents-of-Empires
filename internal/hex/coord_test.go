@@ -40,12 +40,12 @@ func TestInBounds(t *testing.T) {
 		want bool
 	}{
 		{Coord{0, 0}, true},
-		{Coord{19, 19}, true},
+		{Coord{19, 14}, true},
 		{Coord{10, 10}, true},
 		{Coord{-1, 0}, false},
 		{Coord{0, -1}, false},
 		{Coord{20, 0}, false},
-		{Coord{0, 20}, false},
+		{Coord{0, 15}, false},
 	}
 	for _, c := range cases {
 		if got := InBounds(c.c); got != c.want {

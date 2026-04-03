@@ -36,9 +36,9 @@ var strategicResourceKinds = []terrain.Type{
 }
 
 var laneWaypoints = [][]hex.Coord{
-	{{Q: 10, R: 2}},
-	{{Q: 10, R: 10}},
-	{{Q: 10, R: 18}},
+	{{Q: 10, R: 1}},
+	{{Q: 10, R: 7}},
+	{{Q: 10, R: 13}},
 }
 
 // generate fills w.Tiles and populates starting entities for both teams.
@@ -46,11 +46,11 @@ func generate(w *World, seed int64) {
 	rng := rand.New(rand.NewSource(seed))
 
 	tc1Pos := hex.Coord{Q: 4, R: 4}
-	tc2Pos := hex.Coord{Q: 16, R: 16}
+	tc2Pos := hex.Coord{Q: 15, R: 10}
 
 	// Fill with plains.
-	for q := 0; q < hex.GridSize; q++ {
-		for r := 0; r < hex.GridSize; r++ {
+	for q := 0; q < hex.GridWidth; q++ {
+		for r := 0; r < hex.GridHeight; r++ {
 			c := hex.Coord{Q: q, R: r}
 			w.Tiles[c] = terrain.Tile{Coord: c, Terrain: terrain.Plain}
 		}
@@ -82,18 +82,12 @@ func generate(w *World, seed int64) {
 	// Spawn Team 1 starting entities.
 	tc1 := entity.NewBuilding(w.nextID(), entity.Team1, entity.KindTownCenter, tc1Pos)
 	w.addBuilding(tc1)
-	v1 := entity.NewUnit(w.nextID(), entity.Team1, entity.KindVillager, hex.Coord{Q: 5, R: 4})
-	w.addUnit(v1)
-	v2 := entity.NewUnit(w.nextID(), entity.Team1, entity.KindVillager, hex.Coord{Q: 4, R: 5})
-	w.addUnit(v2)
+	spawnStartingVillagers(w, entity.Team1, tc1Pos, 2)
 
 	// Spawn Team 2 starting entities.
 	tc2 := entity.NewBuilding(w.nextID(), entity.Team2, entity.KindTownCenter, tc2Pos)
 	w.addBuilding(tc2)
-	v3 := entity.NewUnit(w.nextID(), entity.Team2, entity.KindVillager, hex.Coord{Q: 15, R: 16})
-	w.addUnit(v3)
-	v4 := entity.NewUnit(w.nextID(), entity.Team2, entity.KindVillager, hex.Coord{Q: 16, R: 15})
-	w.addUnit(v4)
+	spawnStartingVillagers(w, entity.Team2, tc2Pos, 2)
 }
 
 func clearAndReserveArea(w *World, reserved map[hex.Coord]bool, center hex.Coord, radius int) {
@@ -227,6 +221,46 @@ func placeStrategicResource(w *World, reserved map[hex.Coord]bool, c hex.Coord, 
 	w.Tiles[c] = terrain.Tile{Coord: c, Terrain: kind}
 }
 
+func spawnStartingVillagers(w *World, team entity.Team, tcPos hex.Coord, count int) {
+	occupied := occupiedCoords(w)
+	for _, pos := range findOpenSpawnCoords(w, tcPos, occupied, count) {
+		u := entity.NewUnit(w.nextID(), team, entity.KindVillager, pos)
+		w.addUnit(u)
+	}
+}
+
+func occupiedCoords(w *World) map[hex.Coord]bool {
+	occupied := make(map[hex.Coord]bool, len(w.Buildings)+len(w.Units))
+	for _, b := range w.Buildings {
+		occupied[b.Position()] = true
+	}
+	for _, u := range w.Units {
+		occupied[u.Position()] = true
+	}
+	return occupied
+}
+
+func findOpenSpawnCoords(w *World, origin hex.Coord, occupied map[hex.Coord]bool, count int) []hex.Coord {
+	var out []hex.Coord
+	for radius := 1; radius <= 3 && len(out) < count; radius++ {
+		for _, c := range hex.Ring(origin, radius) {
+			if !hex.InBounds(c) || occupied[c] {
+				continue
+			}
+			tile, ok := w.Tiles[c]
+			if !ok || !tile.Terrain.Passable() {
+				continue
+			}
+			occupied[c] = true
+			out = append(out, c)
+			if len(out) == count {
+				return out
+			}
+		}
+	}
+	panic("failed to place starting villagers near town center")
+}
+
 func countTerrain(w *World, kind terrain.Type) int {
 	count := 0
 	for _, tile := range w.Tiles {
@@ -243,7 +277,7 @@ func isStrategicResource(kind terrain.Type) bool {
 
 func randomCoord(rng *rand.Rand) hex.Coord {
 	return hex.Coord{
-		Q: rng.Intn(hex.GridSize),
-		R: rng.Intn(hex.GridSize),
+		Q: rng.Intn(hex.GridWidth),
+		R: rng.Intn(hex.GridHeight),
 	}
 }

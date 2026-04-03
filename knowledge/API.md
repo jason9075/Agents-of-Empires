@@ -7,7 +7,7 @@ No other documentation is needed to make correct API calls.
 
 ## Overview
 
-- The game world is a **30×30 hexagonal grid** using **axial coordinates** `(q, r)`, where `0 ≤ q < 30` and `0 ≤ r < 30`.
+- The game world is a **20×15 hexagonal grid** using **axial coordinates** `(q, r)`, where `0 ≤ q < 20` and `0 ≤ r < 15`.
 - Game time advances in **10-second ticks**. Commands submitted within a tick window are processed atomically at the next tick boundary.
 - **Last-command-wins:** If you submit two commands for the same unit before the tick fires, only the most recent is executed. Previous commands for that unit are silently discarded.
 - Authenticate every request by setting the `X-Team-ID` header to `1` or `2`.
@@ -64,8 +64,8 @@ Returns the complete static terrain grid. This response never changes; cache it 
 **Response:**
 ```json
 {
-  "width": 30,
-  "height": 30,
+  "width": 20,
+  "height": 15,
   "tiles": [
     { "coord": { "q": 0, "r": 0 }, "terrain": "plain" },
     { "coord": { "q": 0, "r": 1 }, "terrain": "forest" },
@@ -74,7 +74,7 @@ Returns the complete static terrain grid. This response never changes; cache it 
 }
 ```
 
-Tiles are ordered by `q * 30 + r` (row-major from q=0, r=0 to q=29, r=29).
+Tiles are ordered by `q * 15 + r` (row-major from q=0, r=0 to q=19, r=14).
 
 ---
 

@@ -67,8 +67,8 @@ func (h *mapHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	h.once.Do(func() {
 		resp := mapResponse{
-			Width:  hex.GridSize,
-			Height: hex.GridSize,
+			Width:  hex.GridWidth,
+			Height: hex.GridHeight,
 			Tiles:  h.w.AllTiles(),
 		}
 		h.data, _ = json.Marshal(resp)

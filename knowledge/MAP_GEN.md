@@ -18,7 +18,7 @@ The generator in `internal/world/world_gen.go` enforces the rules by generation 
 
 ### 1. Start from an all-plain map
 
-The generator first fills the entire 20x20 map with `plain` tiles.
+The generator first fills the entire 20x15 map with `plain` tiles.
 
 This matters because it creates a known valid baseline:
 
