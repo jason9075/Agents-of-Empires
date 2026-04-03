@@ -11,6 +11,7 @@
           golangci-lint
           delve
           just
+          entr
         ];
       };
   };
