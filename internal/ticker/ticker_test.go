@@ -206,6 +206,84 @@ func TestStep_AttackTargetClearsAfterTargetDies(t *testing.T) {
 	}
 }
 
+func TestStep_MoveCommandFailureRecordedWhenTargetBecomesBuilding(t *testing.T) {
+	w := world.NewWorld(42)
+	q := NewQueue()
+	tk := New(w, q, time.Second)
+
+	unit := w.SpawnUnit(entity.Team1, entity.KindInfantry, hex.Coord{Q: 2, R: 2})
+	target := hex.Coord{Q: 7, R: 4}
+	building := w.SpawnBuilding(entity.Team2, entity.KindBarracks, target)
+
+	cmd := q.Submit(Command{
+		Team:          entity.Team1,
+		UnitID:        unit.ID(),
+		Kind:          CmdMoveFast,
+		TargetCoord:   &target,
+		SubmittedTick: w.GetTick(),
+	})
+	if cmd.CommandID == 0 {
+		t.Fatalf("expected queue to assign command id")
+	}
+
+	tk.step()
+
+	failures := w.GetLastTickCommandFailures(entity.Team1)
+	if len(failures) != 1 {
+		t.Fatalf("failures len = %d, want 1", len(failures))
+	}
+	failure := failures[0]
+	if failure.CommandID != cmd.CommandID || failure.Code != "target_building_occupied" {
+		t.Fatalf("unexpected failure: %+v", failure)
+	}
+	if failure.UnitID == nil || *failure.UnitID != unit.ID() || failure.TargetCoord == nil || *failure.TargetCoord != target {
+		t.Fatalf("unexpected failure target data: %+v", failure)
+	}
+	if failure.ResolvedTick != 1 || failure.SubmittedTick != 0 {
+		t.Fatalf("unexpected tick metadata: %+v", failure)
+	}
+	if got := w.GetUnit(unit.ID()).Status(); got != entity.StatusIdle {
+		t.Fatalf("expected invalid move not to overwrite unit status, got %s", got)
+	}
+	if w.GetBuilding(building.ID()) == nil {
+		t.Fatalf("expected blocking building to remain")
+	}
+}
+
+func TestStep_AttackCommandFailureRecordedWhenTargetGone(t *testing.T) {
+	w := world.NewWorld(42)
+	q := NewQueue()
+	tk := New(w, q, time.Second)
+
+	attacker := w.SpawnUnit(entity.Team1, entity.KindInfantry, hex.Coord{Q: 2, R: 2})
+	target := w.SpawnUnit(entity.Team2, entity.KindArcher, hex.Coord{Q: 4, R: 2})
+	targetID := target.ID()
+
+	cmd := q.Submit(Command{
+		Team:          entity.Team1,
+		UnitID:        attacker.ID(),
+		Kind:          CmdAttack,
+		TargetID:      ptrID(targetID),
+		SubmittedTick: w.GetTick(),
+	})
+	w.WriteFunc(func() {
+		delete(w.Units, targetID)
+	})
+
+	tk.step()
+
+	failures := w.GetLastTickCommandFailures(entity.Team1)
+	if len(failures) != 1 {
+		t.Fatalf("failures len = %d, want 1", len(failures))
+	}
+	if failures[0].CommandID != cmd.CommandID || failures[0].Code != "target_not_found" {
+		t.Fatalf("unexpected failure: %+v", failures[0])
+	}
+	if got := w.GetUnit(attacker.ID()).Status(); got != entity.StatusIdle {
+		t.Fatalf("expected missing target attack not to overwrite unit status, got %s", got)
+	}
+}
+
 func TestStep_SimultaneousCombatAllowsMutualKill(t *testing.T) {
 	w := world.NewWorld(42)
 	q := NewQueue()

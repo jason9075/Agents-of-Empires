@@ -102,6 +102,18 @@ Returns current game state filtered by your team's **Line of Sight (LOS)**.
     "reserved": 1,
     "cap": 20
   },
+  "last_tick_failed_commands": [
+    {
+      "command_id": 14,
+      "unit_id": 2,
+      "kind": "MOVE_FAST",
+      "target_coord": { "q": 4, "r": 4 },
+      "submitted_tick": 4,
+      "resolved_tick": 5,
+      "code": "target_building_occupied",
+      "reason": "target hex is occupied by a building at resolution"
+    }
+  ],
   "units": [
     {
       "id": 2,
@@ -154,9 +166,11 @@ Returns current game state filtered by your team's **Line of Sight (LOS)**.
 - `tick` — current game tick number (starts at 0 and increments once per server tick interval).
 - `resources` — your team's current stockpile only. Enemy resources are never exposed.
 - `population` — current living population, reserved queue population, and the hard team cap.
+- `last_tick_failed_commands` — permanent execution failures from the most recently resolved tick for your team only.
 - `status` — the unit's persistent action state, such as `IDLE`, `MOVING_FAST`, `MOVING_GUARD`, `ATTACKING`, `GATHERING`, or `BUILDING`.
 - `status_phase` — the unit's current sub-phase inside that state.
 - `status_target_coord` / `status_target_id` / `status_building_kind` — the target the unit is currently committed to.
+- failed command records include `command_id`, original target fields, `submitted_tick`, `resolved_tick`, and a machine-readable `code`.
 - `units` / `buildings` — mix of friendly (`"friendly": true`) and visible enemy (`"friendly": false`) entities.
 - Enemy entities only appear if they are within the LOS radius of at least one of your units or buildings.
 
@@ -176,12 +190,16 @@ This endpoint exists so an agent can avoid re-issuing duplicate or contradictory
   "tick": 5,
   "commands": [
     {
+      "command_id": 14,
+      "submitted_tick": 5,
       "team": 1,
       "unit_id": 2,
       "kind": "MOVE_GUARD",
       "target_coord": { "q": 7, "r": 4 }
     },
     {
+      "command_id": 15,
+      "submitted_tick": 5,
       "team": 1,
       "building_id": 1,
       "kind": "PRODUCE",
@@ -194,6 +212,8 @@ This endpoint exists so an agent can avoid re-issuing duplicate or contradictory
 **Field notes:**
 - `tick` — the current resolved world tick. The listed commands are queued for the next tick boundary after this state.
 - `commands` — only your team's pending commands.
+- `command_id` — stable ID for correlating an accepted command with later execution failure reporting.
+- `submitted_tick` — the resolved tick number when the server accepted the command into the pending queue.
 - pending commands already follow last-command-wins semantics, so each actor appears at most once.
 - this is not command history; once the next tick resolves, the queue is cleared.
 - use `/commands` to inspect submissions still waiting for the next tick, and `/state` to inspect what units are still doing across later ticks.
@@ -202,7 +222,7 @@ This endpoint exists so an agent can avoid re-issuing duplicate or contradictory
 
 ### `POST /command`
 
-Submits an action for one of your units. Returns `202 Accepted` immediately; the command is queued for the next tick and then updates the unit's persistent status.
+Submits an action for one of your units. Returns `202 Accepted` immediately with a `command_id`; the command is queued for the next tick and then updates the unit's persistent status.
 
 **Required header:** `X-Team-ID: 1` or `X-Team-ID: 2`
 
@@ -230,6 +250,15 @@ Submits an action for one of your units. Returns `202 Accepted` immediately; the
 **`building_kind` values:** `"barracks"`, `"stable"`, `"archery_range"`
 
 **`unit_kind` values:** `"villager"`, `"infantry"`, `"spearman"`, `"scout_cavalry"`, `"paladin"`, `"archer"`
+
+**Accepted response:**
+
+```json
+{
+  "command_id": 14,
+  "tick": 5
+}
+```
 
 **Response codes:**
 - `202 Accepted` — command queued successfully.
@@ -338,7 +367,7 @@ A minimal loop for an agent to start gathering resources:
 
 4. POST /command  (X-Team-ID: 1)
    Body: { "unit_id": 2, "kind": "GATHER", "target_coord": { "q": 6, "r": 4 } }
-   → 202 Accepted
+   → 202 Accepted with a `command_id`
 
 5. GET /commands  (X-Team-ID: 1)
    → Verify the new command is now queued, and avoid sending a duplicate for the same actor.
@@ -347,6 +376,7 @@ A minimal loop for an agent to start gathering resources:
 
 7. GET /state  (X-Team-ID: 1)
    → Verify the villager's `status`, `status_phase`, `carry_amount`, or stockpile changed as expected.
+   → Also inspect `last_tick_failed_commands` for permanent execution failures that only became knowable at tick resolution.
 
 8. Repeat from step 2, adjusting strategy based on current state.
 ```

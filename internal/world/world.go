@@ -24,6 +24,22 @@ type PopulationSummary struct {
 	Cap      int `json:"cap"`
 }
 
+type CommandFailure struct {
+	CommandID     uint64           `json:"command_id"`
+	Team          entity.Team      `json:"team"`
+	UnitID        *entity.EntityID `json:"unit_id,omitempty"`
+	BuildingID    *entity.EntityID `json:"building_id,omitempty"`
+	Kind          string           `json:"kind"`
+	TargetCoord   *hex.Coord       `json:"target_coord,omitempty"`
+	TargetID      *entity.EntityID `json:"target_id,omitempty"`
+	BuildingKind  *string          `json:"building_kind,omitempty"`
+	UnitKind      *string          `json:"unit_kind,omitempty"`
+	SubmittedTick uint64           `json:"submitted_tick"`
+	ResolvedTick  uint64           `json:"resolved_tick"`
+	Code          string           `json:"code"`
+	Reason        string           `json:"reason"`
+}
+
 // StartingResources is given to each team at T=0.
 var StartingResources = Resources{
 	Food:  200,
@@ -40,6 +56,7 @@ type World struct {
 	Units             map[entity.EntityID]*entity.Unit
 	Buildings         map[entity.EntityID]*entity.Building
 	TeamRes           map[entity.Team]Resources
+	LastTickFailures  map[entity.Team][]CommandFailure
 	Tick              uint64
 	idCounter         atomic.Uint64
 }
@@ -54,6 +71,10 @@ func NewWorld(seed int64) *World {
 		TeamRes: map[entity.Team]Resources{
 			entity.Team1: StartingResources,
 			entity.Team2: StartingResources,
+		},
+		LastTickFailures: map[entity.Team][]CommandFailure{
+			entity.Team1: nil,
+			entity.Team2: nil,
 		},
 	}
 	generate(w, seed)
@@ -194,6 +215,29 @@ func (w *World) GetResources(team entity.Team) Resources {
 	return w.TeamRes[team]
 }
 
+func (w *World) GetLastTickCommandFailures(team entity.Team) []CommandFailure {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	failures := w.LastTickFailures[team]
+	out := make([]CommandFailure, 0, len(failures))
+	for _, failure := range failures {
+		out = append(out, cloneCommandFailure(failure))
+	}
+	return out
+}
+
+func (w *World) SetLastTickCommandFailures(team entity.Team, failures []CommandFailure) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	out := make([]CommandFailure, 0, len(failures))
+	for _, failure := range failures {
+		out = append(out, cloneCommandFailure(failure))
+	}
+	w.LastTickFailures[team] = out
+}
+
 // GetPopulationSummary returns current living and reserved population for a team.
 func (w *World) GetPopulationSummary(team entity.Team) PopulationSummary {
 	w.mu.RLock()
@@ -265,4 +309,33 @@ func (w *World) SpawnBuilding(team entity.Team, kind entity.BuildingKind, pos he
 	b := entity.NewBuilding(w.nextID(), team, kind, pos)
 	w.Buildings[b.ID()] = b
 	return b
+}
+
+func cloneCommandFailure(in CommandFailure) CommandFailure {
+	out := in
+	if in.UnitID != nil {
+		id := *in.UnitID
+		out.UnitID = &id
+	}
+	if in.BuildingID != nil {
+		id := *in.BuildingID
+		out.BuildingID = &id
+	}
+	if in.TargetCoord != nil {
+		coord := *in.TargetCoord
+		out.TargetCoord = &coord
+	}
+	if in.TargetID != nil {
+		id := *in.TargetID
+		out.TargetID = &id
+	}
+	if in.BuildingKind != nil {
+		kind := *in.BuildingKind
+		out.BuildingKind = &kind
+	}
+	if in.UnitKind != nil {
+		kind := *in.UnitKind
+		out.UnitKind = &kind
+	}
+	return out
 }

@@ -61,6 +61,7 @@ type sandboxSnapshot struct {
 	Tick  uint64        `json:"tick"`
 	Team1 fullStateTeam `json:"team1"`
 	Team2 fullStateTeam `json:"team2"`
+	Tiles []tileView    `json:"tiles,omitempty"`
 	Notes []string      `json:"notes,omitempty"`
 }
 
@@ -425,7 +426,13 @@ func runSandboxSimulation(preset sandboxPresetDefinition, timeline []sandboxTime
 	resp := sandboxSimulationResponse{
 		Preset:    preset.summaryForMaxTick(maxTick),
 		Map:       sandboxMapForPreset(preset),
-		Snapshots: []sandboxSnapshot{{Tick: 0, Team1: snapshotTeamData(w, entity.Team1), Team2: snapshotTeamData(w, entity.Team2), Notes: []string{"Initial preset state."}}},
+		Snapshots: []sandboxSnapshot{{
+			Tick:  0,
+			Team1: snapshotTeamData(w, entity.Team1),
+			Team2: snapshotTeamData(w, entity.Team2),
+			Tiles: snapshotSandboxTiles(w, preset),
+			Notes: []string{"Initial preset state."},
+		}},
 	}
 
 	for tickNum := 1; tickNum <= maxTick; tickNum++ {
@@ -446,6 +453,7 @@ func runSandboxSimulation(preset sandboxPresetDefinition, timeline []sandboxTime
 			Tick:  uint64(tickNum),
 			Team1: snapshotTeamData(w, entity.Team1),
 			Team2: snapshotTeamData(w, entity.Team2),
+			Tiles: snapshotSandboxTiles(w, preset),
 		}
 		after.Notes = buildSandboxNotes(before, after, issuedNotes)
 		resp.Snapshots = append(resp.Snapshots, after)
@@ -541,6 +549,22 @@ func sandboxMapForPreset(preset sandboxPresetDefinition) mapResponse {
 		Height: preset.Height,
 		Tiles:  tiles,
 	}
+}
+
+func snapshotSandboxTiles(w *world.World, preset sandboxPresetDefinition) []tileView {
+	tiles := make([]tileView, 0, preset.Width*preset.Height)
+	for q := 0; q < preset.Width; q++ {
+		for r := 0; r < preset.Height; r++ {
+			coord := hex.Coord{Q: q, R: r}
+			tile, _ := w.Tile(coord)
+			tiles = append(tiles, tileView{
+				Coord:     coordView{Q: q, R: r},
+				Terrain:   tile.Terrain.String(),
+				Remaining: w.ResourceAt(coord),
+			})
+		}
+	}
+	return tiles
 }
 
 func sandboxRowToCommand(preset sandboxPresetDefinition, maxTick int, refs map[string]sandboxActorRef, row sandboxTimelineRow, h *commandHandler) (ticker.Command, *sandboxValidationIssue, string) {

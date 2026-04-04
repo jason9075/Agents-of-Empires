@@ -76,17 +76,23 @@ func (t *Ticker) step() {
 	tick := t.world.GetTick() + 1
 	slog.Info("tick", "tick", tick, "commands", len(cmds))
 
-	t.applySubmittedCommands(cmds, tick)
+	failures := t.applySubmittedCommands(cmds, tick)
 	t.resolveMovement()
 	t.resolveGuardTransitions()
 	t.resolveCombat()
 	t.resolveEconomy()
 	t.world.ProcessProduction()
 	t.cleanupAttackStatuses()
+	t.world.SetLastTickCommandFailures(entity.Team1, failures[entity.Team1])
+	t.world.SetLastTickCommandFailures(entity.Team2, failures[entity.Team2])
 	t.world.IncrementTick()
 }
 
-func (t *Ticker) applySubmittedCommands(cmds []Command, tick uint64) {
+func (t *Ticker) applySubmittedCommands(cmds []Command, tick uint64) map[entity.Team][]world.CommandFailure {
+	failures := map[entity.Team][]world.CommandFailure{
+		entity.Team1: nil,
+		entity.Team2: nil,
+	}
 	for _, cmd := range cmds {
 		slog.Debug("command",
 			"tick", tick,
@@ -105,37 +111,85 @@ func (t *Ticker) applySubmittedCommands(cmds []Command, tick uint64) {
 			if !ok {
 				continue
 			}
-			t.world.EnqueueProduction(*cmd.BuildingID, kind)
+			switch t.world.TryEnqueueProduction(*cmd.BuildingID, kind) {
+			case world.ProductionEnqueueQueued:
+			case world.ProductionEnqueueProducerUnavailable:
+				failures[cmd.Team] = append(failures[cmd.Team], commandFailure(cmd, tick, "producer_unavailable", "producer building is unavailable at resolution"))
+			case world.ProductionEnqueueBuildingUnderConstruction:
+				failures[cmd.Team] = append(failures[cmd.Team], commandFailure(cmd, tick, "producer_unavailable", "producer building is still under construction"))
+			case world.ProductionEnqueueInvalidProducer:
+				failures[cmd.Team] = append(failures[cmd.Team], commandFailure(cmd, tick, "invalid_producer", "this building cannot produce the requested unit kind"))
+			case world.ProductionEnqueueInsufficientResources:
+				failures[cmd.Team] = append(failures[cmd.Team], commandFailure(cmd, tick, "insufficient_resources_at_resolution", "team cannot afford this unit at resolution"))
+			case world.ProductionEnqueuePopulationCapReached:
+				failures[cmd.Team] = append(failures[cmd.Team], commandFailure(cmd, tick, "population_cap_reached_at_resolution", "team population cap would be exceeded at resolution"))
+			}
 		case CmdStop:
 			if u := t.world.GetUnit(cmd.UnitID); u != nil {
 				u.ClearStatus()
 			}
 		case CmdMoveFast:
-			if u := t.world.GetUnit(cmd.UnitID); u != nil && cmd.TargetCoord != nil {
+			if cmd.TargetCoord == nil {
+				continue
+			}
+			if failure, failed := t.validateMoveAtResolution(cmd, tick); failed {
+				failures[cmd.Team] = append(failures[cmd.Team], failure)
+				continue
+			}
+			if u := t.world.GetUnit(cmd.UnitID); u != nil {
 				u.SetMoveStatus(entity.StatusMovingFast, *cmd.TargetCoord)
 			}
 		case CmdMoveGuard:
-			if u := t.world.GetUnit(cmd.UnitID); u != nil && cmd.TargetCoord != nil {
+			if cmd.TargetCoord == nil {
+				continue
+			}
+			if failure, failed := t.validateMoveAtResolution(cmd, tick); failed {
+				failures[cmd.Team] = append(failures[cmd.Team], failure)
+				continue
+			}
+			if u := t.world.GetUnit(cmd.UnitID); u != nil {
 				u.SetMoveStatus(entity.StatusMovingGuard, *cmd.TargetCoord)
 			}
 		case CmdAttack:
-			if u := t.world.GetUnit(cmd.UnitID); u != nil && cmd.TargetID != nil {
+			if cmd.TargetID == nil {
+				continue
+			}
+			if failure, failed := t.validateAttackAtResolution(cmd, tick); failed {
+				failures[cmd.Team] = append(failures[cmd.Team], failure)
+				continue
+			}
+			if u := t.world.GetUnit(cmd.UnitID); u != nil {
 				u.SetAttackStatus(*cmd.TargetID)
 			}
 		case CmdGather:
-			if u := t.world.GetUnit(cmd.UnitID); u != nil && cmd.TargetCoord != nil {
+			if cmd.TargetCoord == nil {
+				continue
+			}
+			if !t.world.IsGatherableResource(*cmd.TargetCoord) {
+				failures[cmd.Team] = append(failures[cmd.Team], commandFailure(cmd, tick, "resource_node_depleted", "target resource node is no longer gatherable at resolution"))
+				continue
+			}
+			if u := t.world.GetUnit(cmd.UnitID); u != nil {
 				u.SetGatherStatus(*cmd.TargetCoord)
 			}
 		case CmdBuild:
-			if u := t.world.GetUnit(cmd.UnitID); u != nil && cmd.TargetCoord != nil && cmd.BuildingKind != nil {
-				kind, ok := entity.ParseBuildingKind(*cmd.BuildingKind)
-				if !ok {
-					continue
-				}
+			if cmd.TargetCoord == nil || cmd.BuildingKind == nil {
+				continue
+			}
+			kind, ok := entity.ParseBuildingKind(*cmd.BuildingKind)
+			if !ok {
+				continue
+			}
+			if failure, failed := t.validateBuildAtResolution(cmd, tick, kind); failed {
+				failures[cmd.Team] = append(failures[cmd.Team], failure)
+				continue
+			}
+			if u := t.world.GetUnit(cmd.UnitID); u != nil {
 				u.SetBuildStatus(*cmd.TargetCoord, kind)
 			}
 		}
 	}
+	return failures
 }
 
 func (t *Ticker) resolveMovement() {
@@ -487,4 +541,99 @@ func (t *Ticker) buildApproachTargets(u *entity.Unit, target hex.Coord) []hex.Co
 		}
 	}
 	return out
+}
+
+func (t *Ticker) validateMoveAtResolution(cmd Command, tick uint64) (world.CommandFailure, bool) {
+	tile, ok := t.world.Tile(*cmd.TargetCoord)
+	unit := t.world.GetUnit(cmd.UnitID)
+	if unit == nil || !ok || !entity.UnitCanEnterTerrain(unit.Kind(), tile.Terrain) {
+		return commandFailure(cmd, tick, "target_not_enterable", "target hex is no longer enterable at resolution"), true
+	}
+	if building := t.world.BuildingAt(*cmd.TargetCoord); building != nil && building.IsAlive() {
+		return commandFailure(cmd, tick, "target_building_occupied", "target hex is occupied by a building at resolution"), true
+	}
+	return world.CommandFailure{}, false
+}
+
+func (t *Ticker) validateAttackAtResolution(cmd Command, tick uint64) (world.CommandFailure, bool) {
+	attacker := t.world.GetUnit(cmd.UnitID)
+	if attacker == nil {
+		return commandFailure(cmd, tick, "target_not_found", "attacking unit no longer exists at resolution"), true
+	}
+	if targetUnit := t.world.GetUnit(*cmd.TargetID); targetUnit != nil {
+		if targetUnit.Team() == attacker.Team() {
+			return commandFailure(cmd, tick, "target_became_friendly", "attack target is now friendly at resolution"), true
+		}
+		return world.CommandFailure{}, false
+	}
+	if targetBuilding := t.world.GetBuilding(*cmd.TargetID); targetBuilding != nil {
+		if targetBuilding.Team() == attacker.Team() {
+			return commandFailure(cmd, tick, "target_became_friendly", "attack target is now friendly at resolution"), true
+		}
+		return world.CommandFailure{}, false
+	}
+	return commandFailure(cmd, tick, "target_not_found", "attack target no longer exists at resolution"), true
+}
+
+func (t *Ticker) validateBuildAtResolution(cmd Command, tick uint64, kind entity.BuildingKind) (world.CommandFailure, bool) {
+	switch t.world.BuildTargetStatus(cmd.Team, kind, *cmd.TargetCoord) {
+	case world.BuildTargetInvalid:
+		if building := t.world.BuildingAt(*cmd.TargetCoord); building != nil && building.IsAlive() {
+			return commandFailure(cmd, tick, "incompatible_existing_building", "build target is occupied by an incompatible building at resolution"), true
+		}
+		return commandFailure(cmd, tick, "invalid_build_tile", "build target is not valid for this building at resolution"), true
+	case world.BuildTargetCreate, world.BuildTargetBlocked:
+		if !t.world.CanAfford(cmd.Team, entity.BuildingCost(kind)) {
+			return commandFailure(cmd, tick, "insufficient_resources_at_resolution", "team cannot afford this building at resolution"), true
+		}
+	}
+	return world.CommandFailure{}, false
+}
+
+func commandFailure(cmd Command, tick uint64, code, reason string) world.CommandFailure {
+	var unitID *entity.EntityID
+	if cmd.BuildingID == nil {
+		id := cmd.UnitID
+		unitID = &id
+	}
+	var buildingID *entity.EntityID
+	if cmd.BuildingID != nil {
+		id := *cmd.BuildingID
+		buildingID = &id
+	}
+	var targetCoord *hex.Coord
+	if cmd.TargetCoord != nil {
+		coord := *cmd.TargetCoord
+		targetCoord = &coord
+	}
+	var targetID *entity.EntityID
+	if cmd.TargetID != nil {
+		id := *cmd.TargetID
+		targetID = &id
+	}
+	var buildingKind *string
+	if cmd.BuildingKind != nil {
+		kind := *cmd.BuildingKind
+		buildingKind = &kind
+	}
+	var unitKind *string
+	if cmd.UnitKind != nil {
+		kind := *cmd.UnitKind
+		unitKind = &kind
+	}
+	return world.CommandFailure{
+		CommandID:     cmd.CommandID,
+		Team:          cmd.Team,
+		UnitID:        unitID,
+		BuildingID:    buildingID,
+		Kind:          string(cmd.Kind),
+		TargetCoord:   targetCoord,
+		TargetID:      targetID,
+		BuildingKind:  buildingKind,
+		UnitKind:      unitKind,
+		SubmittedTick: cmd.SubmittedTick,
+		ResolvedTick:  tick,
+		Code:          code,
+		Reason:        reason,
+	}
 }

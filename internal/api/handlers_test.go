@@ -29,6 +29,50 @@ func TestCommandHandler_InvalidGatherReturnsCodeAndReason(t *testing.T) {
 	assertErrorResponse(t, rec, http.StatusBadRequest, "missing_target_coord")
 }
 
+func TestMapHandler_ReflectsGatheredResourceRemaining(t *testing.T) {
+	w := world.NewWorld(42)
+	h := &mapHandler{w: w}
+	villager := w.UnitsByTeam(entity.Team1)[0]
+	pos := hex.Coord{Q: 3, R: 8}
+
+	w.WriteFunc(func() {
+		villager.SetPosition(pos)
+		w.Tiles[pos] = terrain.Tile{Coord: pos, Terrain: terrain.GoldMine}
+		w.ResourceRemaining[pos] = 15
+	})
+
+	if !w.GatherAtCurrentTile(villager.ID()) {
+		t.Fatalf("expected gather to succeed")
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/map", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var resp mapResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal map response: %v", err)
+	}
+
+	for _, tile := range resp.Tiles {
+		if tile.Coord.Q == pos.Q && tile.Coord.R == pos.R {
+			if tile.Terrain != terrain.GoldMine.String() {
+				t.Fatalf("terrain = %q, want %q", tile.Terrain, terrain.GoldMine.String())
+			}
+			if tile.Remaining != 3 {
+				t.Fatalf("remaining = %d, want 3", tile.Remaining)
+			}
+			return
+		}
+	}
+
+	t.Fatalf("expected tile %v in map response", pos)
+}
+
 func TestCommandHandler_MoveOutOfBoundsReturnsCodeAndReason(t *testing.T) {
 	w := world.NewWorld(42)
 	q := ticker.NewQueue()
@@ -64,6 +108,19 @@ func TestCommandHandler_AttackOutOfRangeIsAcceptedForPersistentChase(t *testing.
 	rec := doCommandRequest(t, h, body, "1")
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want %d, body=%s", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+	var resp struct {
+		CommandID uint64 `json:"command_id"`
+		Tick      uint64 `json:"tick"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal accepted response: %v", err)
+	}
+	if resp.CommandID == 0 {
+		t.Fatalf("expected non-zero command_id")
+	}
+	if resp.Tick != w.GetTick() {
+		t.Fatalf("tick = %d, want %d", resp.Tick, w.GetTick())
 	}
 }
 
@@ -129,6 +186,9 @@ func TestCommandHandler_AccountsForPendingResourceReservations(t *testing.T) {
 		},
 	}
 	rec := doCommandRequest(t, h, second, "1")
+	if rec.Code == http.StatusAccepted {
+		t.Fatalf("second build unexpectedly accepted, queue=%+v body=%s", q.Snapshot(), rec.Body.String())
+	}
 	assertErrorResponse(t, rec, http.StatusBadRequest, "insufficient_resources")
 }
 
@@ -171,15 +231,17 @@ func TestCommandsHandler_ReturnsPendingCommandsForTeamOnly(t *testing.T) {
 	target := hex.Coord{Q: 7, R: 7}
 
 	q.Submit(ticker.Command{
-		Team:        entity.Team1,
-		UnitID:      team1Unit.ID(),
-		Kind:        ticker.CmdMoveFast,
-		TargetCoord: &target,
+		Team:          entity.Team1,
+		UnitID:        team1Unit.ID(),
+		Kind:          ticker.CmdMoveFast,
+		TargetCoord:   &target,
+		SubmittedTick: w.GetTick(),
 	})
 	q.Submit(ticker.Command{
-		Team:   entity.Team2,
-		UnitID: team2Unit.ID(),
-		Kind:   ticker.CmdGather,
+		Team:          entity.Team2,
+		UnitID:        team2Unit.ID(),
+		Kind:          ticker.CmdGather,
+		SubmittedTick: w.GetTick(),
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/commands", nil)
@@ -194,10 +256,12 @@ func TestCommandsHandler_ReturnsPendingCommandsForTeamOnly(t *testing.T) {
 	var resp struct {
 		Tick     uint64 `json:"tick"`
 		Commands []struct {
-			Team        entity.Team      `json:"team"`
-			UnitID      *entity.EntityID `json:"unit_id,omitempty"`
-			Kind        string           `json:"kind"`
-			TargetCoord *struct {
+			CommandID     uint64           `json:"command_id"`
+			SubmittedTick uint64           `json:"submitted_tick"`
+			Team          entity.Team      `json:"team"`
+			UnitID        *entity.EntityID `json:"unit_id,omitempty"`
+			Kind          string           `json:"kind"`
+			TargetCoord   *struct {
 				Q int `json:"q"`
 				R int `json:"r"`
 			} `json:"target_coord,omitempty"`
@@ -211,6 +275,12 @@ func TestCommandsHandler_ReturnsPendingCommandsForTeamOnly(t *testing.T) {
 	}
 	if len(resp.Commands) != 1 {
 		t.Fatalf("commands len = %d, want 1, body=%s", len(resp.Commands), rec.Body.String())
+	}
+	if resp.Commands[0].CommandID == 0 {
+		t.Fatalf("expected command_id in commands response")
+	}
+	if resp.Commands[0].SubmittedTick != w.GetTick() {
+		t.Fatalf("submitted_tick = %d, want %d", resp.Commands[0].SubmittedTick, w.GetTick())
 	}
 	if resp.Commands[0].Team != entity.Team1 || resp.Commands[0].UnitID == nil || *resp.Commands[0].UnitID != team1Unit.ID() || resp.Commands[0].Kind != string(ticker.CmdMoveFast) {
 		t.Fatalf("unexpected command: %+v", resp.Commands[0])
@@ -230,16 +300,18 @@ func TestCommandsHandler_ReflectsLastCommandWins(t *testing.T) {
 	second := hex.Coord{Q: 8, R: 8}
 
 	q.Submit(ticker.Command{
-		Team:        entity.Team1,
-		UnitID:      unit.ID(),
-		Kind:        ticker.CmdMoveFast,
-		TargetCoord: &first,
+		Team:          entity.Team1,
+		UnitID:        unit.ID(),
+		Kind:          ticker.CmdMoveFast,
+		TargetCoord:   &first,
+		SubmittedTick: w.GetTick(),
 	})
 	q.Submit(ticker.Command{
-		Team:        entity.Team1,
-		UnitID:      unit.ID(),
-		Kind:        ticker.CmdMoveGuard,
-		TargetCoord: &second,
+		Team:          entity.Team1,
+		UnitID:        unit.ID(),
+		Kind:          ticker.CmdMoveGuard,
+		TargetCoord:   &second,
+		SubmittedTick: w.GetTick(),
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/commands", nil)
@@ -323,6 +395,126 @@ func TestStateHandler_ExposesPersistentUnitStatus(t *testing.T) {
 	t.Fatalf("expected unit %d in state response", unit.ID())
 }
 
+func TestStateHandler_ExposesLastTickFailedCommands(t *testing.T) {
+	w := world.NewWorld(42)
+	h := &stateHandler{w: w}
+
+	unit := w.UnitsByTeam(entity.Team1)[0]
+	target := hex.Coord{Q: 7, R: 4}
+	commandID := uint64(42)
+	w.SetLastTickCommandFailures(entity.Team1, []world.CommandFailure{{
+		CommandID:     commandID,
+		Team:          entity.Team1,
+		UnitID:        ptrEntityID(unit.ID()),
+		Kind:          string(ticker.CmdMoveFast),
+		TargetCoord:   &target,
+		SubmittedTick: 3,
+		ResolvedTick:  4,
+		Code:          "target_building_occupied",
+		Reason:        "target hex is occupied by a building at resolution",
+	}})
+
+	req := httptest.NewRequest(http.MethodGet, "/state", nil)
+	req.Header.Set("X-Team-ID", "1")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var resp struct {
+		LastTickFailedCommands []struct {
+			CommandID     uint64           `json:"command_id"`
+			UnitID        *entity.EntityID `json:"unit_id,omitempty"`
+			SubmittedTick uint64           `json:"submitted_tick"`
+			ResolvedTick  uint64           `json:"resolved_tick"`
+			Code          string           `json:"code"`
+			Reason        string           `json:"reason"`
+			TargetCoord   *struct {
+				Q int `json:"q"`
+				R int `json:"r"`
+			} `json:"target_coord,omitempty"`
+		} `json:"last_tick_failed_commands"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal state response: %v", err)
+	}
+	if len(resp.LastTickFailedCommands) != 1 {
+		t.Fatalf("last_tick_failed_commands len = %d, want 1, body=%s", len(resp.LastTickFailedCommands), rec.Body.String())
+	}
+	got := resp.LastTickFailedCommands[0]
+	if got.CommandID != commandID || got.UnitID == nil || *got.UnitID != unit.ID() {
+		t.Fatalf("unexpected failed command payload: %+v", got)
+	}
+	if got.SubmittedTick != 3 || got.ResolvedTick != 4 || got.Code != "target_building_occupied" || got.Reason == "" {
+		t.Fatalf("unexpected failure metadata: %+v", got)
+	}
+	if got.TargetCoord == nil || got.TargetCoord.Q != target.Q || got.TargetCoord.R != target.R {
+		t.Fatalf("unexpected target coord: %+v", got.TargetCoord)
+	}
+}
+
+func TestFullStateHandler_ExposesLastTickFailedCommandsPerTeam(t *testing.T) {
+	w := world.NewWorld(42)
+	h := &fullStateHandler{w: w}
+
+	team1Unit := w.UnitsByTeam(entity.Team1)[0]
+	team2Unit := w.UnitsByTeam(entity.Team2)[0]
+	w.SetLastTickCommandFailures(entity.Team1, []world.CommandFailure{{
+		CommandID:     11,
+		Team:          entity.Team1,
+		UnitID:        ptrEntityID(team1Unit.ID()),
+		Kind:          string(ticker.CmdMoveFast),
+		SubmittedTick: 1,
+		ResolvedTick:  2,
+		Code:          "target_building_occupied",
+		Reason:        "target hex is occupied by a building at resolution",
+	}})
+	w.SetLastTickCommandFailures(entity.Team2, []world.CommandFailure{{
+		CommandID:     22,
+		Team:          entity.Team2,
+		UnitID:        ptrEntityID(team2Unit.ID()),
+		Kind:          string(ticker.CmdAttack),
+		SubmittedTick: 1,
+		ResolvedTick:  2,
+		Code:          "target_not_found",
+		Reason:        "attack target no longer exists at resolution",
+	}})
+
+	req := httptest.NewRequest(http.MethodGet, "/state/full", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var resp struct {
+		Team1 struct {
+			LastTickFailedCommands []struct {
+				CommandID uint64 `json:"command_id"`
+				Code      string `json:"code"`
+			} `json:"last_tick_failed_commands"`
+		} `json:"team1"`
+		Team2 struct {
+			LastTickFailedCommands []struct {
+				CommandID uint64 `json:"command_id"`
+				Code      string `json:"code"`
+			} `json:"last_tick_failed_commands"`
+		} `json:"team2"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal full state response: %v", err)
+	}
+	if len(resp.Team1.LastTickFailedCommands) != 1 || resp.Team1.LastTickFailedCommands[0].CommandID != 11 || resp.Team1.LastTickFailedCommands[0].Code != "target_building_occupied" {
+		t.Fatalf("unexpected team1 failures: %+v", resp.Team1.LastTickFailedCommands)
+	}
+	if len(resp.Team2.LastTickFailedCommands) != 1 || resp.Team2.LastTickFailedCommands[0].CommandID != 22 || resp.Team2.LastTickFailedCommands[0].Code != "target_not_found" {
+		t.Fatalf("unexpected team2 failures: %+v", resp.Team2.LastTickFailedCommands)
+	}
+}
+
 type commandErrorEnvelope struct {
 	Error struct {
 		Code   string `json:"code"`
@@ -359,4 +551,8 @@ func assertErrorResponse(t *testing.T, rec *httptest.ResponseRecorder, wantStatu
 	if resp.Error.Reason == "" {
 		t.Fatalf("error.reason should not be empty")
 	}
+}
+
+func ptrEntityID(id entity.EntityID) *entity.EntityID {
+	return &id
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jason9075/agents_of_dynasties/internal/entity"
@@ -25,21 +26,24 @@ const (
 
 // Command is an action submitted by an agent for a specific unit.
 type Command struct {
-	Team         entity.Team      `json:"team"`
-	UnitID       entity.EntityID  `json:"unit_id"`
-	BuildingID   *entity.EntityID `json:"building_id,omitempty"`
-	Kind         CommandKind      `json:"kind"`
-	TargetCoord  *hex.Coord       `json:"target_coord,omitempty"`
-	TargetID     *entity.EntityID `json:"target_id,omitempty"`
-	BuildingKind *string          `json:"building_kind,omitempty"` // for BUILD
-	UnitKind     *string          `json:"unit_kind,omitempty"`     // for PRODUCE
-	ReceivedAt   time.Time        `json:"-"`
+	CommandID     uint64           `json:"command_id"`
+	Team          entity.Team      `json:"team"`
+	UnitID        entity.EntityID  `json:"unit_id"`
+	BuildingID    *entity.EntityID `json:"building_id,omitempty"`
+	Kind          CommandKind      `json:"kind"`
+	TargetCoord   *hex.Coord       `json:"target_coord,omitempty"`
+	TargetID      *entity.EntityID `json:"target_id,omitempty"`
+	BuildingKind  *string          `json:"building_kind,omitempty"` // for BUILD
+	UnitKind      *string          `json:"unit_kind,omitempty"`     // for PRODUCE
+	SubmittedTick uint64           `json:"submitted_tick"`
+	ReceivedAt    time.Time        `json:"-"`
 }
 
-// Queue holds at most one pending command per unit (last-command-wins).
+// Queue holds at most one pending command per actor (last-command-wins).
 type Queue struct {
 	mu      sync.Mutex
 	pending map[string]Command
+	nextID  atomic.Uint64
 }
 
 // NewQueue creates an empty command queue.
@@ -48,11 +52,15 @@ func NewQueue() *Queue {
 }
 
 // Submit records cmd, replacing any prior command for the same unit.
-func (q *Queue) Submit(cmd Command) {
+func (q *Queue) Submit(cmd Command) Command {
 	cmd.ReceivedAt = time.Now()
+	if cmd.CommandID == 0 {
+		cmd.CommandID = q.nextID.Add(1)
+	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.pending[commandActorKey(cmd)] = cmd
+	return cmd
 }
 
 // Drain atomically removes and returns all pending commands.

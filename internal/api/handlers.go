@@ -64,14 +64,31 @@ type coordView struct {
 }
 
 type commandView struct {
-	Team         entity.Team        `json:"team"`
-	UnitID       *entity.EntityID   `json:"unit_id,omitempty"`
-	BuildingID   *entity.EntityID   `json:"building_id,omitempty"`
-	Kind         ticker.CommandKind `json:"kind"`
-	TargetCoord  *coordView         `json:"target_coord,omitempty"`
-	TargetID     *entity.EntityID   `json:"target_id,omitempty"`
-	BuildingKind *string            `json:"building_kind,omitempty"`
-	UnitKind     *string            `json:"unit_kind,omitempty"`
+	CommandID     uint64             `json:"command_id"`
+	SubmittedTick uint64             `json:"submitted_tick"`
+	Team          entity.Team        `json:"team"`
+	UnitID        *entity.EntityID   `json:"unit_id,omitempty"`
+	BuildingID    *entity.EntityID   `json:"building_id,omitempty"`
+	Kind          ticker.CommandKind `json:"kind"`
+	TargetCoord   *coordView         `json:"target_coord,omitempty"`
+	TargetID      *entity.EntityID   `json:"target_id,omitempty"`
+	BuildingKind  *string            `json:"building_kind,omitempty"`
+	UnitKind      *string            `json:"unit_kind,omitempty"`
+}
+
+type failedCommandView struct {
+	CommandID     uint64           `json:"command_id"`
+	UnitID        *entity.EntityID `json:"unit_id,omitempty"`
+	BuildingID    *entity.EntityID `json:"building_id,omitempty"`
+	Kind          string           `json:"kind"`
+	TargetCoord   *coordView       `json:"target_coord,omitempty"`
+	TargetID      *entity.EntityID `json:"target_id,omitempty"`
+	BuildingKind  *string          `json:"building_kind,omitempty"`
+	UnitKind      *string          `json:"unit_kind,omitempty"`
+	SubmittedTick uint64           `json:"submitted_tick"`
+	ResolvedTick  uint64           `json:"resolved_tick"`
+	Code          string           `json:"code"`
+	Reason        string           `json:"reason"`
 }
 
 type populationView struct {
@@ -81,11 +98,12 @@ type populationView struct {
 }
 
 type stateResponse struct {
-	Tick       uint64          `json:"tick"`
-	Resources  world.Resources `json:"resources"`
-	Population populationView  `json:"population"`
-	Units      []unitView      `json:"units"`
-	Buildings  []buildingView  `json:"buildings"`
+	Tick                   uint64              `json:"tick"`
+	Resources              world.Resources     `json:"resources"`
+	Population             populationView      `json:"population"`
+	LastTickFailedCommands []failedCommandView `json:"last_tick_failed_commands"`
+	Units                  []unitView          `json:"units"`
+	Buildings              []buildingView      `json:"buildings"`
 }
 
 type commandsResponse struct {
@@ -187,11 +205,12 @@ func (h *stateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := stateResponse{
-		Tick:       h.w.GetTick(),
-		Resources:  h.w.GetResources(team),
-		Population: toPopulationView(h.w.GetPopulationSummary(team)),
-		Units:      units,
-		Buildings:  buildings,
+		Tick:                   h.w.GetTick(),
+		Resources:              h.w.GetResources(team),
+		Population:             toPopulationView(h.w.GetPopulationSummary(team)),
+		LastTickFailedCommands: toFailedCommandViews(h.w.GetLastTickCommandFailures(team)),
+		Units:                  units,
+		Buildings:              buildings,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -201,10 +220,16 @@ func (h *stateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // --- Full state handler (god-mode, no LOS masking) ---
 
 type fullStateTeam struct {
-	Resources  world.Resources `json:"resources"`
-	Population populationView  `json:"population"`
-	Units      []unitView      `json:"units"`
-	Buildings  []buildingView  `json:"buildings"`
+	Resources              world.Resources     `json:"resources"`
+	Population             populationView      `json:"population"`
+	LastTickFailedCommands []failedCommandView `json:"last_tick_failed_commands"`
+	Units                  []unitView          `json:"units"`
+	Buildings              []buildingView      `json:"buildings"`
+}
+
+type commandAcceptedResponse struct {
+	CommandID uint64 `json:"command_id"`
+	Tick      uint64 `json:"tick"`
 }
 
 type fullStateResponse struct {
@@ -247,10 +272,11 @@ func (h *fullStateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 		return fullStateTeam{
-			Resources:  h.w.GetResources(team),
-			Population: toPopulationView(h.w.GetPopulationSummary(team)),
-			Units:      units,
-			Buildings:  buildings,
+			Resources:              h.w.GetResources(team),
+			Population:             toPopulationView(h.w.GetPopulationSummary(team)),
+			LastTickFailedCommands: toFailedCommandViews(h.w.GetLastTickCommandFailures(team)),
+			Units:                  units,
+			Buildings:              buildings,
 		}
 	}
 
@@ -357,8 +383,14 @@ func (h *commandHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.q.Submit(cmd)
+	cmd.SubmittedTick = h.w.GetTick()
+	accepted := h.q.Submit(cmd)
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(commandAcceptedResponse{
+		CommandID: accepted.CommandID,
+		Tick:      accepted.SubmittedTick,
+	})
 }
 
 func (h *commandHandler) validateCommand(cmd ticker.Command) (int, string, string) {
@@ -585,14 +617,16 @@ func toCommandView(cmd ticker.Command) commandView {
 		unitID = &id
 	}
 	return commandView{
-		Team:         cmd.Team,
-		UnitID:       unitID,
-		BuildingID:   cmd.BuildingID,
-		Kind:         cmd.Kind,
-		TargetCoord:  targetCoord,
-		TargetID:     cmd.TargetID,
-		BuildingKind: cmd.BuildingKind,
-		UnitKind:     cmd.UnitKind,
+		CommandID:     cmd.CommandID,
+		SubmittedTick: cmd.SubmittedTick,
+		Team:          cmd.Team,
+		UnitID:        unitID,
+		BuildingID:    cmd.BuildingID,
+		Kind:          cmd.Kind,
+		TargetCoord:   targetCoord,
+		TargetID:      cmd.TargetID,
+		BuildingKind:  cmd.BuildingKind,
+		UnitKind:      cmd.UnitKind,
 	}
 }
 
@@ -631,4 +665,29 @@ func toUnitView(u *entity.Unit, friendly bool) unitView {
 		AttackTargetID:     attackTargetID,
 		Friendly:           friendly,
 	}
+}
+
+func toFailedCommandViews(failures []world.CommandFailure) []failedCommandView {
+	out := make([]failedCommandView, 0, len(failures))
+	for _, failure := range failures {
+		var targetCoord *coordView
+		if failure.TargetCoord != nil {
+			targetCoord = &coordView{Q: failure.TargetCoord.Q, R: failure.TargetCoord.R}
+		}
+		out = append(out, failedCommandView{
+			CommandID:     failure.CommandID,
+			UnitID:        failure.UnitID,
+			BuildingID:    failure.BuildingID,
+			Kind:          failure.Kind,
+			TargetCoord:   targetCoord,
+			TargetID:      failure.TargetID,
+			BuildingKind:  failure.BuildingKind,
+			UnitKind:      failure.UnitKind,
+			SubmittedTick: failure.SubmittedTick,
+			ResolvedTick:  failure.ResolvedTick,
+			Code:          failure.Code,
+			Reason:        failure.Reason,
+		})
+	}
+	return out
 }

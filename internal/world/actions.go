@@ -26,6 +26,17 @@ const (
 	BuildActionComplete
 )
 
+type ProductionEnqueueResult uint8
+
+const (
+	ProductionEnqueueQueued ProductionEnqueueResult = iota
+	ProductionEnqueueProducerUnavailable
+	ProductionEnqueueBuildingUnderConstruction
+	ProductionEnqueueInvalidProducer
+	ProductionEnqueueInsufficientResources
+	ProductionEnqueuePopulationCapReached
+)
+
 func isAdjacentToFriendlyTownCenter(buildings map[entity.EntityID]*entity.Building, team entity.Team, pos hex.Coord) bool {
 	for _, b := range buildings {
 		if !b.IsAlive() || !b.IsComplete() || b.Team() != team || b.Kind() != entity.KindTownCenter {
@@ -483,27 +494,35 @@ func (w *World) ApplyDamage(damage map[entity.EntityID]int) {
 
 // EnqueueProduction adds a unit to a building queue if the team can pay and the producer matches.
 func (w *World) EnqueueProduction(buildingID entity.EntityID, kind entity.UnitKind) bool {
+	return w.TryEnqueueProduction(buildingID, kind) == ProductionEnqueueQueued
+}
+
+// TryEnqueueProduction adds a unit to a building queue if the producer is valid.
+func (w *World) TryEnqueueProduction(buildingID entity.EntityID, kind entity.UnitKind) ProductionEnqueueResult {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	b := w.Buildings[buildingID]
-	if b == nil || !b.IsAlive() || !b.IsComplete() {
-		return false
+	if b == nil || !b.IsAlive() {
+		return ProductionEnqueueProducerUnavailable
+	}
+	if !b.IsComplete() {
+		return ProductionEnqueueBuildingUnderConstruction
 	}
 	if !entity.BuildingCanTrain(b.Kind(), kind) {
-		return false
+		return ProductionEnqueueInvalidProducer
 	}
 	cost := entity.UnitCost(kind)
 	if !w.canAffordLocked(b.Team(), cost) {
-		return false
+		return ProductionEnqueueInsufficientResources
 	}
 	if w.populationUsedLocked(b.Team())+w.populationReservedLocked(b.Team())+entity.UnitPopulation(kind) > entity.PopulationCap {
-		return false
+		return ProductionEnqueuePopulationCapReached
 	}
 
 	w.payLocked(b.Team(), cost)
 	b.Enqueue(kind)
-	return true
+	return ProductionEnqueueQueued
 }
 
 // ProcessProduction spawns at most one queued unit per building each tick.

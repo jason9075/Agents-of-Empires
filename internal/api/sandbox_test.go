@@ -269,6 +269,38 @@ func TestSandboxSimulateHandler_GatherFourCornersStartsPersistentGathering(t *te
 	}
 }
 
+func TestSandboxSimulateHandler_GatherFourCornersReducesResourceRemaining(t *testing.T) {
+	h := &sandboxSimulateHandler{}
+	reqBody := sandboxSimulationRequest{PresetID: "gather_four_corners"}
+
+	rec := doSandboxRequest(t, http.MethodPost, "/sandbox/simulate", reqBody, h)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var resp sandboxSimulationResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal sandbox simulate response: %v", err)
+	}
+
+	startTile := findTile(resp.Snapshots[0].Tiles, 0, 0)
+	if startTile == nil || startTile.Remaining <= 0 {
+		t.Fatalf("expected deer tile remaining on tick 0, tiles=%+v", resp.Snapshots[0].Tiles)
+	}
+
+	reduced := false
+	for _, snapshot := range resp.Snapshots[1:] {
+		tile := findTile(snapshot.Tiles, 0, 0)
+		if tile != nil && tile.Remaining < startTile.Remaining {
+			reduced = true
+			break
+		}
+	}
+	if !reduced {
+		t.Fatalf("expected deer tile remaining to decrease across snapshots")
+	}
+}
+
 func doSandboxRequest(t *testing.T, method, path string, body any, h http.Handler) *httptest.ResponseRecorder {
 	t.Helper()
 
@@ -325,6 +357,16 @@ func findPresetSummary(presets []sandboxPresetSummary, id string) *sandboxPreset
 		if preset.ID == id {
 			copyPreset := preset
 			return &copyPreset
+		}
+	}
+	return nil
+}
+
+func findTile(tiles []tileView, q, r int) *tileView {
+	for _, tile := range tiles {
+		if tile.Coord.Q == q && tile.Coord.R == r {
+			copyTile := tile
+			return &copyTile
 		}
 	}
 	return nil
