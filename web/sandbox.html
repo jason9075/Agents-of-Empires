@@ -1,0 +1,1478 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agents of Dynasties Sandbox</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      :root {
+        --bg: #0b1115;
+        --panel: #131d24;
+        --panel-2: #17242d;
+        --border: rgba(255, 255, 255, 0.1);
+        --text: #e5edf2;
+        --muted: #8ba0ad;
+        --accent: #d49f42;
+        --accent-soft: rgba(212, 159, 66, 0.2);
+        --team-1: #5ba4f5;
+        --team-2: #ef6a6a;
+        --danger: #ff8c8c;
+        --good: #8fe39b;
+        --shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+      }
+
+      body {
+        margin: 0;
+        font-family:
+          "SF Mono", "Fira Code", "JetBrains Mono", "IBM Plex Sans",
+          system-ui, sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(91, 164, 245, 0.14), transparent 28%),
+          radial-gradient(circle at top right, rgba(212, 159, 66, 0.12), transparent 26%),
+          linear-gradient(180deg, #091015 0%, var(--bg) 100%);
+        color: var(--text);
+        min-height: 100vh;
+      }
+
+      button,
+      select,
+      input {
+        font: inherit;
+      }
+
+      button,
+      select {
+        border: 1px solid var(--border);
+        background: #18242d;
+        color: var(--text);
+        border-radius: 10px;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      button:hover,
+      select:hover {
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+
+      .app {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        min-height: 100vh;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+        padding: 0.85rem 1rem;
+        border-bottom: 1px solid var(--border);
+        background: rgba(8, 14, 18, 0.84);
+        backdrop-filter: blur(14px);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      .brand {
+        display: flex;
+        flex-direction: column;
+        gap: 0.18rem;
+        min-width: 190px;
+      }
+
+      .brand h1 {
+        margin: 0;
+        font-size: 0.95rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .brand p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.72rem;
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        flex-wrap: wrap;
+        width: 100%;
+      }
+
+      .toolbar-group {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+      }
+
+      .toolbar-group label {
+        color: var(--muted);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .toolbar select,
+      .toolbar button {
+        min-height: 38px;
+        padding: 0 0.85rem;
+      }
+
+      .toolbar button.active {
+        background: rgba(91, 164, 245, 0.22);
+        border-color: rgba(91, 164, 245, 0.45);
+      }
+
+      .tick-chip {
+        margin-left: auto;
+        padding: 0.55rem 0.85rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 0.78rem;
+        white-space: nowrap;
+      }
+
+      .tick-chip strong {
+        color: var(--text);
+      }
+
+      .home-link {
+        text-decoration: none;
+        color: var(--text);
+        padding: 0.6rem 0.85rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 360px minmax(0, 1fr);
+        min-height: 0;
+      }
+
+      .sidebar {
+        border-right: 1px solid var(--border);
+        background: rgba(10, 16, 20, 0.84);
+        overflow-y: auto;
+        padding: 1rem;
+      }
+
+      .panel {
+        background: linear-gradient(180deg, rgba(22, 34, 43, 0.98), rgba(15, 24, 30, 0.98));
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+      }
+
+      .panel + .panel {
+        margin-top: 1rem;
+      }
+
+      .panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.8rem;
+        padding: 0.95rem 1rem 0.75rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .panel-head h2 {
+        margin: 0;
+        font-size: 0.88rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .panel-body {
+        padding: 1rem;
+      }
+
+      .preset-summary p,
+      .small-note {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.55;
+        font-size: 0.79rem;
+      }
+
+      .chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        margin-top: 0.9rem;
+      }
+
+      .chip {
+        padding: 0.38rem 0.65rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--muted);
+        font-size: 0.72rem;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .warning {
+        margin-top: 0.8rem;
+        padding: 0.75rem 0.85rem;
+        border-radius: 14px;
+        background: rgba(255, 140, 140, 0.12);
+        border: 1px solid rgba(255, 140, 140, 0.26);
+        color: #ffd3d3;
+        font-size: 0.78rem;
+        line-height: 1.45;
+      }
+
+      .timeline-actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .timeline-actions button {
+        min-height: 34px;
+        padding: 0 0.75rem;
+      }
+
+      .rows {
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+      }
+
+      .row-card {
+        padding: 0.9rem;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .row-card.invalid {
+        border-color: rgba(255, 140, 140, 0.32);
+        background: rgba(255, 140, 140, 0.08);
+      }
+
+      .row-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.7rem;
+        margin-bottom: 0.8rem;
+      }
+
+      .row-top strong {
+        font-size: 0.82rem;
+        letter-spacing: 0.04em;
+      }
+
+      .delete-btn {
+        min-height: 30px;
+        padding: 0 0.65rem;
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--muted);
+      }
+
+      .field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.65rem;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+
+      .field.full {
+        grid-column: 1 / -1;
+      }
+
+      .field label {
+        color: var(--muted);
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .field input,
+      .field select {
+        min-height: 36px;
+        padding: 0 0.65rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        background: rgba(11, 16, 20, 0.86);
+        color: var(--text);
+      }
+
+      .coord-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem;
+      }
+
+      .row-error {
+        margin-top: 0.75rem;
+        color: #ffd2d2;
+        font-size: 0.75rem;
+        line-height: 1.45;
+      }
+
+      .main {
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+        min-width: 0;
+        background: linear-gradient(180deg, rgba(12, 18, 23, 0.95), rgba(9, 13, 16, 0.98));
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 280px;
+        gap: 1rem;
+        padding: 1rem;
+        min-height: 0;
+      }
+
+      .canvas-panel {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        min-width: 0;
+      }
+
+      .canvas-head {
+        padding: 0.95rem 1rem 0.75rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.8rem;
+      }
+
+      .canvas-head h2,
+      .details-head h2 {
+        margin: 0;
+        font-size: 0.88rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .canvas-wrap {
+        overflow: auto;
+        padding: 1rem;
+      }
+
+      #sandbox-canvas {
+        display: block;
+        margin: 0 auto;
+        cursor: default;
+      }
+
+      .details {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        min-height: 0;
+      }
+
+      .details-head {
+        padding: 0.95rem 1rem 0.75rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .details-body {
+        padding: 1rem;
+        overflow-y: auto;
+      }
+
+      .stat-block + .stat-block {
+        margin-top: 1rem;
+      }
+
+      .stat-title {
+        color: var(--muted);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.5rem;
+      }
+
+      .resource-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.45rem;
+      }
+
+      .resource-card,
+      .note-card,
+      .entity-card {
+        padding: 0.7rem 0.8rem;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .resource-card strong,
+      .entity-card strong {
+        display: block;
+        font-size: 0.72rem;
+        color: var(--muted);
+        margin-bottom: 0.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .resource-card span {
+        font-size: 0.94rem;
+      }
+
+      .entity-list,
+      .notes-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+      }
+
+      .entity-card,
+      .note-card {
+        font-size: 0.77rem;
+        line-height: 1.55;
+      }
+
+      .entity-card code,
+      .note-card code {
+        color: #f6d7a3;
+      }
+
+      .footer-bar {
+        padding: 0.9rem 1rem 1rem;
+        border-top: 1px solid var(--border);
+      }
+
+      .tick-slider-wrap {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 0.8rem;
+        align-items: center;
+      }
+
+      .tick-slider-wrap span {
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      input[type='range'] {
+        width: 100%;
+        accent-color: var(--accent);
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        margin-top: 0.75rem;
+      }
+
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.55rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--muted);
+        font-size: 0.7rem;
+      }
+
+      .swatch {
+        width: 11px;
+        height: 11px;
+        border-radius: 3px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      @media (max-width: 1180px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          border-right: 0;
+          border-bottom: 1px solid var(--border);
+        }
+
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .topbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .tick-chip {
+          margin-left: 0;
+        }
+
+        .field-grid,
+        .coord-row,
+        .resource-grid,
+        .tick-slider-wrap {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="app">
+      <div class="topbar">
+        <div class="brand">
+          <h1>Sandbox Testing</h1>
+          <p>Isolated sandbox timeline using the actual game logic</p>
+        </div>
+
+        <div class="toolbar">
+          <div class="toolbar-group">
+            <label for="preset-select">Preset</label>
+            <select id="preset-select"></select>
+          </div>
+
+          <div class="toolbar-group">
+            <label for="refresh-select">Playback speed</label>
+            <select id="refresh-select">
+              <option value="300">Fast</option>
+              <option value="800" selected>Normal</option>
+              <option value="1500">Slow</option>
+            </select>
+          </div>
+
+          <div class="toolbar-group">
+            <button id="play-toggle">Play</button>
+            <button id="step-back">Prev</button>
+            <button id="step-forward">Next</button>
+            <button id="reset-playback">Reset Tick</button>
+          </div>
+
+          <div class="tick-chip">Viewing tick <strong id="tick-label">0</strong></div>
+          <a class="home-link" href="/index.html">Live Monitor</a>
+        </div>
+      </div>
+
+      <div class="layout">
+        <aside class="sidebar">
+          <section class="panel preset-summary">
+            <div class="panel-head">
+              <h2>Preset Brief</h2>
+            </div>
+            <div class="panel-body">
+              <p id="preset-description"></p>
+              <div class="chip-row">
+                <span class="chip" id="preset-map-meta"></span>
+                <span class="chip" id="preset-rules-meta"></span>
+                <span class="chip" id="preset-max-tick-meta"></span>
+              </div>
+              <div id="global-warning" class="warning" hidden></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Command Timeline</h2>
+              <div class="timeline-actions">
+                <button id="add-row">Add Row</button>
+                <button id="reset-preset">Reset Preset</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <p class="small-note">
+                This page runs on an isolated sandbox timeline. It can keep extending the
+                simulation beyond the preset seed ticks so you can inspect cross-tick
+                command outcomes without competing with the live battle loop.
+              </p>
+              <div id="rows" class="rows"></div>
+            </div>
+          </section>
+        </aside>
+
+        <main class="main">
+          <div class="workspace">
+            <section class="panel canvas-panel">
+              <div class="canvas-head">
+                <h2>Scenario View</h2>
+                <span class="small-note" id="snapshot-summary"></span>
+              </div>
+              <div class="canvas-wrap">
+                <canvas id="sandbox-canvas"></canvas>
+              </div>
+            </section>
+
+            <section class="panel details">
+              <div class="details-head">
+                <h2>Tick Details</h2>
+              </div>
+              <div class="details-body">
+                <div class="stat-block">
+                  <div class="stat-title">Team 1 Resources</div>
+                  <div class="resource-grid" id="resource-grid"></div>
+                </div>
+
+                <div class="stat-block">
+                  <div class="stat-title">Entities</div>
+                  <div class="entity-list" id="entity-list"></div>
+                </div>
+
+                <div class="stat-block">
+                  <div class="stat-title">Tick Notes</div>
+                  <div class="notes-list" id="notes-list"></div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="footer-bar">
+            <div class="tick-slider-wrap">
+              <span>Tick scrubber</span>
+              <input id="tick-slider" type="range" min="0" max="0" value="0" />
+              <span id="tick-range-label">0 / 0</span>
+            </div>
+
+            <div class="legend" id="legend"></div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <script>
+      const HEX_SIZE = 42
+      const SQRT3 = Math.sqrt(3)
+      const PAD = HEX_SIZE
+      const PRESET_ENDPOINT = '/sandbox/presets'
+      const SIMULATE_ENDPOINT = '/sandbox/simulate'
+      const SUPPORTED_COMMANDS = ['MOVE_FAST', 'MOVE_GUARD', 'BUILD']
+      const SUPPORTED_BUILDINGS = ['barracks', 'stable', 'archery_range']
+      const AUTO_EXTEND_TICKS = 12
+      const AUTO_EXTEND_BUFFER = 3
+
+      const TEAM_COLOR = {
+        1: '#5ba4f5',
+        2: '#ef6a6a',
+      }
+
+      const TERRAIN_COLOR = {
+        plain: '#53673d',
+        forest: '#284d2d',
+        mountain: '#655a51',
+        lake: '#235d8c',
+        gold_mine: '#c79d2b',
+        stone_mine: '#8b8176',
+        orchard: '#3d8732',
+        deer: '#6e8f61',
+      }
+
+      const BUILDING_ABBR = {
+        town_center: 'TC',
+        barracks: 'BA',
+        stable: 'ST',
+        archery_range: 'AR',
+      }
+
+      const UNIT_ABBR = {
+        villager: 'V',
+        infantry: 'I',
+        spearman: 'SP',
+        scout_cavalry: 'SC',
+        paladin: 'PA',
+        archer: 'AR',
+      }
+
+      let rowCounter = 0
+      let presetList = []
+      let currentPresetId = ''
+      let currentPreset = null
+      let mapData = null
+      let defaultTimeline = []
+      let editorRows = []
+      let validationByRow = {}
+      let snapshots = []
+      let simulationMaxTick = 0
+      let currentTick = 0
+      let playbackMs = 800
+      let playbackHandle = null
+      let syncHandle = null
+      let simulationRequestId = 0
+      let globalError = ''
+
+      function clone(value) {
+        return JSON.parse(JSON.stringify(value))
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+      }
+
+      function formatLabel(value) {
+        return String(value).replace(/_/g, ' ')
+      }
+
+      function hexToPixel(q, r) {
+        return {
+          x: HEX_SIZE * SQRT3 * (q + 0.5 * (r & 1)),
+          y: HEX_SIZE * 1.5 * r,
+        }
+      }
+
+      function hexPath(ctx, cx, cy) {
+        ctx.beginPath()
+        for (let i = 0; i < 6; i++) {
+          const angle = (Math.PI / 3) * i - Math.PI / 6
+          const px = cx + HEX_SIZE * Math.cos(angle)
+          const py = cy + HEX_SIZE * Math.sin(angle)
+          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)
+        }
+        ctx.closePath()
+      }
+
+      function actorChoices() {
+        return currentPreset?.actors || []
+      }
+
+      function newClientRow(partial = {}) {
+        return {
+          rowId: partial.rowId || partial.row_id || `row_${++rowCounter}`,
+          tick: partial.tick ?? 1,
+          actorId: partial.actorId || partial.actor_id || actorChoices()[0]?.id || '',
+          kind: partial.kind || 'MOVE_GUARD',
+          targetCoord: partial.targetCoord
+            ? { ...partial.targetCoord }
+            : partial.target_coord
+              ? { ...partial.target_coord }
+              : { q: 0, r: 0 },
+          buildingKind:
+            partial.buildingKind || partial.building_kind || 'barracks',
+          unitKind: partial.unitKind || partial.unit_kind || '',
+        }
+      }
+
+      function normalizeRows(rows) {
+        return (rows || []).map((row) => newClientRow(row))
+      }
+
+      function serializeRows(rows) {
+        return rows.map((row) => {
+          const payload = {
+            row_id: row.rowId,
+            tick: Number(row.tick),
+            actor_id: row.actorId,
+            kind: row.kind,
+          }
+          if (row.targetCoord) {
+            payload.target_coord = {
+              q: Number(row.targetCoord.q),
+              r: Number(row.targetCoord.r),
+            }
+          }
+          if (row.kind === 'BUILD') {
+            payload.building_kind = row.buildingKind
+          }
+          if (row.unitKind) {
+            payload.unit_kind = row.unitKind
+          }
+          return payload
+        })
+      }
+
+      async function fetchJSON(url, options = {}) {
+        const res = await fetch(url, options)
+        const text = await res.text()
+        const body = text ? JSON.parse(text) : {}
+        if (!res.ok) {
+          const reason = body?.error?.reason || `Request failed with ${res.status}`
+          throw new Error(reason)
+        }
+        return body
+      }
+
+      function issueMapByRow(issues) {
+        const out = {}
+        for (const issue of issues || []) {
+          if (!issue.row_id) continue
+          out[issue.row_id] = issue.reason || issue.code
+        }
+        return out
+      }
+
+      function sortedRows(rows) {
+        return [...rows].sort((a, b) => {
+          const tickDelta = Number(a.tick) - Number(b.tick)
+          if (tickDelta !== 0) return tickDelta
+          return String(a.rowId).localeCompare(String(b.rowId))
+        })
+      }
+
+      function highestScheduledTick(rows = editorRows) {
+        let highest = 0
+        for (const row of rows || []) {
+          highest = Math.max(highest, Number(row.tick) || 0)
+        }
+        return highest
+      }
+
+      function editableMaxTick() {
+        return Math.max(
+          currentPreset?.max_tick || 1,
+          simulationMaxTick || 1,
+          highestScheduledTick(editorRows) + AUTO_EXTEND_TICKS,
+        )
+      }
+
+      function desiredSimulationMaxTick(rows = editorRows, minTick = 0) {
+        return Math.max(
+          1,
+          currentPreset?.max_tick || 0,
+          simulationMaxTick || 0,
+          highestScheduledTick(rows) + AUTO_EXTEND_TICKS,
+          minTick,
+        )
+      }
+
+      function stopPlayback() {
+        if (playbackHandle !== null) {
+          clearTimeout(playbackHandle)
+          playbackHandle = null
+        }
+        const button = document.getElementById('play-toggle')
+        button.textContent = 'Play'
+        button.classList.remove('active')
+      }
+
+      async function advancePlayback() {
+        const nextTick = currentTick + 1
+        await ensureSnapshotsThrough(nextTick + AUTO_EXTEND_BUFFER)
+        if (playbackHandle === null) {
+          return
+        }
+        setCurrentTick(nextTick)
+      }
+
+      function queuePlaybackStep() {
+        if (playbackHandle === null) {
+          return
+        }
+        playbackHandle = setTimeout(async () => {
+          if (playbackHandle === null) {
+            return
+          }
+          await advancePlayback()
+          if (playbackHandle !== null) {
+            queuePlaybackStep()
+          }
+        }, playbackMs)
+      }
+
+      function startPlayback() {
+        stopPlayback()
+        playbackHandle = -1
+        const button = document.getElementById('play-toggle')
+        button.textContent = 'Pause'
+        button.classList.add('active')
+        queuePlaybackStep()
+      }
+
+      function togglePlayback() {
+        if (playbackHandle === null) {
+          startPlayback()
+        } else {
+          stopPlayback()
+        }
+      }
+
+      function setCurrentTick(nextTick) {
+        currentTick = Math.max(0, Math.min(nextTick, Math.max(0, snapshots.length - 1)))
+        renderAll()
+      }
+
+      async function ensureSnapshotsThrough(targetTick) {
+        if (!currentPresetId || targetTick <= Math.max(0, snapshots.length - 1)) {
+          return
+        }
+        const targetMaxTick = desiredSimulationMaxTick(editorRows, targetTick + AUTO_EXTEND_TICKS)
+        await runSimulation({
+          timeline: editorRows,
+          maxTick: targetMaxTick,
+        })
+      }
+
+      async function fetchPresets() {
+        const data = await fetchJSON(PRESET_ENDPOINT)
+        return data.presets || []
+      }
+
+      async function fetchSimulation(timeline = null, maxTick = 0) {
+        const body = { preset_id: currentPresetId }
+        if (timeline) {
+          body.timeline = serializeRows(timeline)
+        }
+        if (maxTick > 0) {
+          body.max_tick = maxTick
+        }
+        return fetchJSON(SIMULATE_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+      }
+
+      function applySimulation(data, { resetTick = false } = {}) {
+        currentPreset = data.preset
+        mapData = data.map
+        validationByRow = issueMapByRow(data.validation_issues)
+        snapshots = data.snapshots || []
+        simulationMaxTick = Math.max(0, data.preset?.max_tick || snapshots.length - 1)
+
+        if (resetTick) {
+          currentTick = 0
+        } else if (currentTick > snapshots.length - 1) {
+          currentTick = Math.max(0, snapshots.length - 1)
+        }
+
+        renderAll()
+      }
+
+      async function runSimulation({ timeline = null, resetTick = false, maxTick = 0 } = {}) {
+        const requestId = ++simulationRequestId
+        try {
+          const data = await fetchSimulation(timeline, maxTick)
+          if (requestId !== simulationRequestId) {
+            return null
+          }
+          globalError = ''
+          applySimulation(data, { resetTick })
+          return data
+        } catch (error) {
+          if (requestId !== simulationRequestId) {
+            return null
+          }
+          globalError = error.message
+          renderAll()
+          return null
+        }
+      }
+
+      async function loadPreset(presetId) {
+        stopPlayback()
+        globalError = ''
+        currentPresetId = presetId
+        currentTick = 0
+
+        try {
+          const data = await runSimulation({ resetTick: true })
+          if (!data) {
+            return
+          }
+          defaultTimeline = normalizeRows(data.preset.default_timeline || [])
+          editorRows = clone(defaultTimeline)
+          document.getElementById('refresh-select').value = String(
+            data.preset.default_playback_ms || 800,
+          )
+          playbackMs = Number(document.getElementById('refresh-select').value)
+          renderAll()
+        } catch (error) {
+          globalError = error.message
+          renderAll()
+        }
+      }
+
+      function scheduleSimulation() {
+        if (!currentPresetId) return
+        if (syncHandle !== null) {
+          clearTimeout(syncHandle)
+        }
+        syncHandle = setTimeout(async () => {
+          syncHandle = null
+          await runSimulation({
+            timeline: editorRows,
+            maxTick: desiredSimulationMaxTick(editorRows),
+          })
+        }, 140)
+      }
+
+      function resetPreset() {
+        stopPlayback()
+        globalError = ''
+        editorRows = clone(defaultTimeline)
+        currentTick = 0
+        scheduleSimulation()
+      }
+
+      function addRow() {
+        stopPlayback()
+        editorRows.push(
+          newClientRow({
+            tick: Math.max(1, currentTick + 1),
+            actorId: actorChoices()[0]?.id || '',
+            kind: 'MOVE_GUARD',
+            targetCoord: { q: 0, r: 0 },
+          }),
+        )
+        renderRows()
+        scheduleSimulation()
+      }
+
+      function updateRow(rowId, field, value) {
+        const row = editorRows.find((candidate) => candidate.rowId === rowId)
+        if (!row) return
+        stopPlayback()
+        if (field === 'tick') row.tick = value
+        if (field === 'actorId') row.actorId = value
+        if (field === 'kind') row.kind = value
+        if (field === 'target-q') row.targetCoord.q = value
+        if (field === 'target-r') row.targetCoord.r = value
+        if (field === 'buildingKind') row.buildingKind = value
+        renderRows()
+        scheduleSimulation()
+      }
+
+      function deleteRow(rowId) {
+        stopPlayback()
+        editorRows = editorRows.filter((row) => row.rowId !== rowId)
+        renderRows()
+        scheduleSimulation()
+      }
+
+      function buildLegend() {
+        const legend = document.getElementById('legend')
+        legend.innerHTML = ''
+        const items = [
+          ['plain', 'Plain', 'terrain'],
+          ['forest', 'Forest', 'terrain'],
+          ['gold_mine', 'Gold', 'terrain'],
+          ['town_center', 'Building', 'building'],
+          ['under_construction', 'Construction', 'construction'],
+          ['villager', 'Unit', 'unit'],
+        ]
+
+        for (const [key, label, kind] of items) {
+          const item = document.createElement('div')
+          item.className = 'legend-item'
+          const swatch = document.createElement('span')
+          swatch.className = 'swatch'
+          if (kind === 'terrain') {
+            swatch.style.background = TERRAIN_COLOR[key] || '#45525a'
+          } else if (kind === 'building') {
+            swatch.style.background = TEAM_COLOR[1]
+          } else if (kind === 'construction') {
+            swatch.style.background =
+              'linear-gradient(90deg, rgba(212,159,66,0.95), rgba(212,159,66,0.28))'
+          } else {
+            swatch.style.background = TEAM_COLOR[1]
+            swatch.style.borderRadius = '999px'
+          }
+          item.appendChild(swatch)
+          item.appendChild(document.createTextNode(label))
+          legend.appendChild(item)
+        }
+      }
+
+      function renderRows() {
+        const rowsEl = document.getElementById('rows')
+        rowsEl.innerHTML = ''
+        const rows = sortedRows(editorRows)
+        const maxTick = editableMaxTick()
+
+        for (const row of rows) {
+          const error = validationByRow[row.rowId]
+          const actors = actorChoices()
+          const showBuild = row.kind === 'BUILD'
+          const card = document.createElement('div')
+          card.className = `row-card${error ? ' invalid' : ''}`
+          card.innerHTML = `
+            <div class="row-top">
+              <strong>Tick ${escapeHtml(String(row.tick))}</strong>
+              <button class="delete-btn" data-delete-row="${escapeHtml(row.rowId)}">Delete</button>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label>Tick</label>
+                <input data-field="tick" data-row="${escapeHtml(row.rowId)}" type="number" min="1" max="${escapeHtml(String(maxTick))}" value="${escapeHtml(String(row.tick))}" />
+              </div>
+              <div class="field">
+                <label>Actor</label>
+                <select data-field="actorId" data-row="${escapeHtml(row.rowId)}">
+                  ${actors
+                    .map(
+                      (actor) =>
+                        `<option value="${escapeHtml(actor.id)}"${actor.id === row.actorId ? ' selected' : ''}>${escapeHtml(actor.label)}</option>`,
+                    )
+                    .join('')}
+                </select>
+              </div>
+              <div class="field full">
+                <label>Command</label>
+                <select data-field="kind" data-row="${escapeHtml(row.rowId)}">
+                  ${SUPPORTED_COMMANDS.map(
+                    (kind) =>
+                      `<option value="${kind}"${kind === row.kind ? ' selected' : ''}>${escapeHtml(kind)}</option>`,
+                  ).join('')}
+                </select>
+              </div>
+              <div class="field full">
+                <label>Target</label>
+                <div class="coord-row">
+                  <input data-field="target-q" data-row="${escapeHtml(row.rowId)}" type="number" value="${escapeHtml(String(row.targetCoord.q))}" />
+                  <input data-field="target-r" data-row="${escapeHtml(row.rowId)}" type="number" value="${escapeHtml(String(row.targetCoord.r))}" />
+                </div>
+              </div>
+              <div class="field full"${showBuild ? '' : ' hidden'}>
+                <label>Building kind</label>
+                <select data-field="buildingKind" data-row="${escapeHtml(row.rowId)}">
+                  ${SUPPORTED_BUILDINGS.map(
+                    (kind) =>
+                      `<option value="${kind}"${kind === row.buildingKind ? ' selected' : ''}>${escapeHtml(formatLabel(kind))}</option>`,
+                  ).join('')}
+                </select>
+              </div>
+            </div>
+            ${error ? `<div class="row-error">${escapeHtml(error)}</div>` : ''}
+          `
+          rowsEl.appendChild(card)
+        }
+      }
+
+      function renderPresetSummary() {
+        if (!currentPreset || !mapData) return
+        document.getElementById('preset-description').textContent =
+          currentPreset.description || ''
+        document.getElementById('preset-map-meta').textContent =
+          `${mapData.width}x${mapData.height} sandbox map`
+        document.getElementById('preset-rules-meta').textContent =
+          'Isolated sandbox engine'
+        document.getElementById('preset-max-tick-meta').textContent =
+          `0-${simulationMaxTick} simulated ticks`
+      }
+
+      function renderGlobalWarning() {
+        const warningEl = document.getElementById('global-warning')
+        const messages = []
+        if (globalError) {
+          messages.push(globalError)
+        }
+        const count = Object.keys(validationByRow).length
+        if (count > 0) {
+          messages.push(
+            `${count} command row${count === 1 ? '' : 's'} are invalid. Invalid rows are ignored by the sandbox simulation until corrected.`,
+          )
+        }
+        if (messages.length === 0) {
+          warningEl.hidden = true
+          warningEl.textContent = ''
+          return
+        }
+        warningEl.hidden = false
+        warningEl.textContent = messages.join(' ')
+      }
+
+      function renderTickControls() {
+        const slider = document.getElementById('tick-slider')
+        const maxTick = Math.max(0, snapshots.length - 1)
+        slider.max = String(maxTick)
+        slider.value = String(currentTick)
+        document.getElementById('tick-label').textContent = String(currentTick)
+        document.getElementById('tick-range-label').textContent =
+          `${currentTick} / ${maxTick}`
+      }
+
+      function combinedUnits(snapshot) {
+        return [...(snapshot.team1?.units || []), ...(snapshot.team2?.units || [])]
+      }
+
+      function combinedBuildings(snapshot) {
+        return [
+          ...(snapshot.team1?.buildings || []),
+          ...(snapshot.team2?.buildings || []),
+        ]
+      }
+
+      function renderSnapshotSummary(snapshot) {
+        const buildings = combinedBuildings(snapshot)
+        const completeBuildings = buildings.filter((building) => building.complete).length
+        const incompleteBuildings = buildings.filter((building) => !building.complete).length
+        document.getElementById('snapshot-summary').textContent =
+          `${combinedUnits(snapshot).length} unit(s), ${completeBuildings} completed building(s), ${incompleteBuildings} building(s) in progress`
+      }
+
+      function renderDetails(snapshot) {
+        const team = snapshot.team1?.resources || {
+          food: 0,
+          wood: 0,
+          gold: 0,
+          stone: 0,
+        }
+        const resourceGrid = document.getElementById('resource-grid')
+        resourceGrid.innerHTML = ''
+        const resources = [
+          ['Food', team.food],
+          ['Wood', team.wood],
+          ['Gold', team.gold],
+          ['Stone', team.stone],
+        ]
+        for (const [label, value] of resources) {
+          const card = document.createElement('div')
+          card.className = 'resource-card'
+          card.innerHTML = `<strong>${escapeHtml(label)}</strong><span>${escapeHtml(String(value))}</span>`
+          resourceGrid.appendChild(card)
+        }
+
+        const entityList = document.getElementById('entity-list')
+        entityList.innerHTML = ''
+
+        for (const unit of combinedUnits(snapshot)) {
+          const card = document.createElement('div')
+          card.className = 'entity-card'
+          const attackTarget = unit.attack_target_id
+            ? `<br>Target: <code>#${escapeHtml(String(unit.attack_target_id))}</code>`
+            : ''
+          const carry =
+            unit.carry_amount > 0
+              ? `<br>Carry: <code>${escapeHtml(String(unit.carry_amount))} ${escapeHtml(unit.carry_resource)}</code>`
+              : ''
+          card.innerHTML = `
+            <strong>#${escapeHtml(String(unit.id))}</strong>
+            Team ${escapeHtml(String(unit.team))} ${escapeHtml(formatLabel(unit.kind))} at <code>(${unit.position.q}, ${unit.position.r})</code><br>
+            HP ${escapeHtml(String(unit.hp))}/${escapeHtml(String(unit.max_hp))}${carry}${attackTarget}
+          `
+          entityList.appendChild(card)
+        }
+
+        for (const building of combinedBuildings(snapshot)) {
+          const card = document.createElement('div')
+          card.className = 'entity-card'
+          const buildState = building.complete
+            ? 'complete'
+            : `${building.build_progress}/${building.build_ticks_total}`
+          const queueState =
+            building.production_queue_len > 0
+              ? `<br>Queue: <code>${building.production_queue_len} item(s), ${building.production_ticks_remaining} tick(s)</code>`
+              : ''
+          card.innerHTML = `
+            <strong>#${escapeHtml(String(building.id))}</strong>
+            Team ${escapeHtml(String(building.team))} ${escapeHtml(formatLabel(building.kind))} at <code>(${building.position.q}, ${building.position.r})</code><br>
+            State: <code>${escapeHtml(buildState)}</code>${queueState}
+          `
+          entityList.appendChild(card)
+        }
+
+        const notesList = document.getElementById('notes-list')
+        notesList.innerHTML = ''
+        for (const note of snapshot.notes || ['No state change on this tick.']) {
+          const card = document.createElement('div')
+          card.className = 'note-card'
+          card.textContent = note
+          notesList.appendChild(card)
+        }
+      }
+
+      function drawMap(snapshot) {
+        if (!mapData) return
+        const canvas = document.getElementById('sandbox-canvas')
+        const ctx = canvas.getContext('2d')
+        const logicalWidth =
+          Math.ceil(HEX_SIZE * SQRT3 * (mapData.width + 0.5)) + PAD * 2
+        const logicalHeight =
+          Math.ceil(HEX_SIZE * (1.5 * (mapData.height - 1) + 2)) + PAD * 2
+
+        canvas.width = logicalWidth
+        canvas.height = logicalHeight
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+        for (const tile of mapData.tiles || []) {
+          const { x, y } = hexToPixel(tile.coord.q, tile.coord.r)
+          const cx = x + PAD
+          const cy = y + PAD
+
+          hexPath(ctx, cx, cy)
+          ctx.fillStyle = TERRAIN_COLOR[tile.terrain] || '#3b4a53'
+          ctx.fill()
+          hexPath(ctx, cx, cy)
+          ctx.strokeStyle = 'rgba(0,0,0,0.35)'
+          ctx.lineWidth = 1
+          ctx.stroke()
+
+          ctx.fillStyle = 'rgba(255,255,255,0.58)'
+          ctx.font = '11px "SF Mono", monospace'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(`${tile.coord.q},${tile.coord.r}`, cx, cy + HEX_SIZE * 0.58)
+        }
+
+        for (const building of combinedBuildings(snapshot)) {
+          const { x, y } = hexToPixel(building.position.q, building.position.r)
+          const cx = x + PAD
+          const cy = y + PAD
+          const size = HEX_SIZE * 0.95
+
+          ctx.save()
+          if (!building.complete) {
+            ctx.globalAlpha = 0.6
+          }
+          ctx.fillStyle = TEAM_COLOR[building.team] || '#8ca0b0'
+          ctx.strokeStyle = 'rgba(0,0,0,0.45)'
+          ctx.lineWidth = 1.3
+          ctx.fillRect(cx - size / 2, cy - size / 2, size, size)
+          ctx.strokeRect(cx - size / 2, cy - size / 2, size, size)
+          ctx.fillStyle = '#f8fafc'
+          ctx.font = 'bold 13px "SF Mono", monospace'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(BUILDING_ABBR[building.kind] || '?', cx, cy)
+          ctx.restore()
+
+          if (!building.complete) {
+            const width = HEX_SIZE * 1.18
+            const ratio =
+              building.build_ticks_total > 0
+                ? building.build_progress / building.build_ticks_total
+                : 0
+            ctx.fillStyle = 'rgba(0,0,0,0.55)'
+            ctx.fillRect(cx - width / 2, cy + HEX_SIZE * 0.7, width, 8)
+            ctx.fillStyle = 'rgba(212, 159, 66, 0.92)'
+            ctx.fillRect(cx - width / 2, cy + HEX_SIZE * 0.7, width * ratio, 8)
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)'
+            ctx.strokeRect(cx - width / 2, cy + HEX_SIZE * 0.7, width, 8)
+          }
+        }
+
+        for (const unit of combinedUnits(snapshot)) {
+          const { x, y } = hexToPixel(unit.position.q, unit.position.r)
+          const cx = x + PAD
+          const cy = y + PAD
+          const radius = HEX_SIZE * 0.42
+
+          ctx.beginPath()
+          ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+          ctx.fillStyle = TEAM_COLOR[unit.team] || '#8ca0b0'
+          ctx.fill()
+          ctx.strokeStyle = 'rgba(0,0,0,0.48)'
+          ctx.lineWidth = 1.5
+          ctx.stroke()
+          ctx.fillStyle = '#fff'
+          ctx.font = 'bold 14px "SF Mono", monospace'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(UNIT_ABBR[unit.kind] || '?', cx, cy)
+        }
+      }
+
+      function renderAll() {
+        renderGlobalWarning()
+        renderRows()
+        renderPresetSummary()
+        renderTickControls()
+        if (snapshots.length === 0) return
+        const snapshot = snapshots[currentTick]
+        renderSnapshotSummary(snapshot)
+        renderDetails(snapshot)
+        drawMap(snapshot)
+      }
+
+      function bindEvents() {
+        document.getElementById('preset-select').addEventListener('change', (event) => {
+          loadPreset(event.target.value)
+        })
+
+        document.getElementById('refresh-select').addEventListener('change', (event) => {
+          playbackMs = Number(event.target.value)
+          if (playbackHandle !== null) {
+            startPlayback()
+          }
+        })
+
+        document.getElementById('play-toggle').addEventListener('click', togglePlayback)
+        document.getElementById('step-back').addEventListener('click', () => {
+          stopPlayback()
+          setCurrentTick(currentTick - 1)
+        })
+        document.getElementById('step-forward').addEventListener('click', async () => {
+          stopPlayback()
+          await ensureSnapshotsThrough(currentTick + 1)
+          setCurrentTick(currentTick + 1)
+        })
+        document.getElementById('reset-playback').addEventListener('click', () => {
+          stopPlayback()
+          setCurrentTick(0)
+        })
+        document.getElementById('add-row').addEventListener('click', addRow)
+        document.getElementById('reset-preset').addEventListener('click', resetPreset)
+        document.getElementById('tick-slider').addEventListener('input', (event) => {
+          stopPlayback()
+          setCurrentTick(Number(event.target.value))
+        })
+
+        document.getElementById('rows').addEventListener('input', (event) => {
+          const rowId = event.target.getAttribute('data-row')
+          const field = event.target.getAttribute('data-field')
+          if (!rowId || !field) return
+          updateRow(rowId, field, event.target.value)
+        })
+
+        document.getElementById('rows').addEventListener('change', (event) => {
+          const rowId = event.target.getAttribute('data-row')
+          const field = event.target.getAttribute('data-field')
+          if (!rowId || !field) return
+          updateRow(rowId, field, event.target.value)
+        })
+
+        document.getElementById('rows').addEventListener('click', (event) => {
+          const rowId = event.target.getAttribute('data-delete-row')
+          if (!rowId) return
+          deleteRow(rowId)
+        })
+      }
+
+      async function init() {
+        buildLegend()
+        bindEvents()
+        try {
+          presetList = await fetchPresets()
+          const select = document.getElementById('preset-select')
+          select.innerHTML = presetList
+            .map(
+              (preset) =>
+                `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.name)}</option>`,
+            )
+            .join('')
+
+          if (presetList.length === 0) {
+            globalError = 'No sandbox presets are available.'
+            renderAll()
+            return
+          }
+
+          await loadPreset(select.value || presetList[0].id)
+        } catch (error) {
+          globalError = error.message
+          renderAll()
+        }
+      }
+
+      init()
+    </script>
+  </body>
+</html>

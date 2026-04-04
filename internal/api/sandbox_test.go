@@ -166,6 +166,38 @@ func TestSandboxSimulateHandler_ReturnsValidationIssuesWithoutTouchingLiveWorld(
 	}
 }
 
+func TestSandboxSimulateHandler_AllowsExtendedSimulationBeyondPresetMaxTick(t *testing.T) {
+	h := &sandboxSimulateHandler{}
+	reqBody := sandboxSimulationRequest{
+		PresetID: "villager_move_then_build",
+		MaxTick:  10,
+	}
+
+	rec := doSandboxRequest(t, http.MethodPost, "/sandbox/simulate", reqBody, h)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var resp sandboxSimulationResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal sandbox simulate response: %v", err)
+	}
+
+	if resp.Preset.MaxTick != 10 {
+		t.Fatalf("response max_tick = %d, want 10", resp.Preset.MaxTick)
+	}
+	if len(resp.Snapshots) != 11 {
+		t.Fatalf("snapshots len = %d, want 11", len(resp.Snapshots))
+	}
+
+	assertUnitPos(t, resp.Snapshots[10], 1001, 5, 2)
+
+	tick10Barracks := findBuilding(resp.Snapshots[10].Team1.Buildings, "barracks", 6, 2)
+	if tick10Barracks == nil || !tick10Barracks.Complete {
+		t.Fatalf("expected completed barracks on tick 10, buildings=%+v", resp.Snapshots[10].Team1.Buildings)
+	}
+}
+
 func doSandboxRequest(t *testing.T, method, path string, body any, h http.Handler) *httptest.ResponseRecorder {
 	t.Helper()
 

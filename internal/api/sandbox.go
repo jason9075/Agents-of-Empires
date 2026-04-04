@@ -47,6 +47,7 @@ type sandboxPresetsResponse struct {
 
 type sandboxSimulationRequest struct {
 	PresetID string               `json:"preset_id"`
+	MaxTick  int                  `json:"max_tick,omitempty"`
 	Timeline []sandboxTimelineRow `json:"timeline,omitempty"`
 }
 
@@ -88,6 +89,8 @@ type sandboxPresetDefinition struct {
 	Buildings        []sandboxBuildingSeed
 	DefaultTimeline  []sandboxTimelineRow
 }
+
+const sandboxSimulationTickLimit = 2000
 
 type sandboxUnitSeed struct {
 	ActorID  string
@@ -159,12 +162,25 @@ func (h *sandboxSimulateHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	maxTick := preset.MaxTick
+	if req.MaxTick > 0 {
+		maxTick = req.MaxTick
+	}
+	if maxTick < 1 {
+		writeError(w, http.StatusBadRequest, "invalid_max_tick", "max_tick must be at least 1")
+		return
+	}
+	if maxTick > sandboxSimulationTickLimit {
+		writeError(w, http.StatusBadRequest, "max_tick_too_large", fmt.Sprintf("max_tick must be <= %d", sandboxSimulationTickLimit))
+		return
+	}
+
 	timeline := req.Timeline
 	if len(timeline) == 0 {
 		timeline = cloneSandboxTimeline(preset.DefaultTimeline)
 	}
 
-	resp := runSandboxSimulation(preset, timeline)
+	resp := runSandboxSimulation(preset, timeline, maxTick)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
 }
@@ -260,6 +276,10 @@ func newVillagerMoveThenBuildPreset() sandboxPresetDefinition {
 }
 
 func (p sandboxPresetDefinition) summary() sandboxPresetSummary {
+	return p.summaryForMaxTick(p.MaxTick)
+}
+
+func (p sandboxPresetDefinition) summaryForMaxTick(maxTick int) sandboxPresetSummary {
 	actors := make([]sandboxPresetActor, 0, len(p.Units))
 	for _, unit := range p.Units {
 		if unit.ActorID == "" {
@@ -277,7 +297,7 @@ func (p sandboxPresetDefinition) summary() sandboxPresetSummary {
 		ID:               p.ID,
 		Name:             p.Name,
 		Description:      p.Description,
-		MaxTick:          p.MaxTick,
+		MaxTick:          maxTick,
 		DefaultPlaybackM: p.DefaultPlaybackM,
 		Actors:           actors,
 		DefaultTimeline:  cloneSandboxTimeline(p.DefaultTimeline),
@@ -305,7 +325,7 @@ func cloneSandboxTimeline(rows []sandboxTimelineRow) []sandboxTimelineRow {
 	return out
 }
 
-func runSandboxSimulation(preset sandboxPresetDefinition, timeline []sandboxTimelineRow) sandboxSimulationResponse {
+func runSandboxSimulation(preset sandboxPresetDefinition, timeline []sandboxTimelineRow, maxTick int) sandboxSimulationResponse {
 	w, actorRefs := newSandboxWorld(preset)
 	q := ticker.NewQueue()
 	tk := ticker.New(w, q, time.Second)
@@ -317,15 +337,15 @@ func runSandboxSimulation(preset sandboxPresetDefinition, timeline []sandboxTime
 	}
 
 	resp := sandboxSimulationResponse{
-		Preset:    preset.summary(),
+		Preset:    preset.summaryForMaxTick(maxTick),
 		Map:       sandboxMapForPreset(preset),
 		Snapshots: []sandboxSnapshot{{Tick: 0, Team1: snapshotTeamData(w, entity.Team1), Team2: snapshotTeamData(w, entity.Team2), Notes: []string{"Initial preset state."}}},
 	}
 
-	for tickNum := 1; tickNum <= preset.MaxTick; tickNum++ {
+	for tickNum := 1; tickNum <= maxTick; tickNum++ {
 		issuedNotes := make([]string, 0)
 		for _, row := range rowsByTick[tickNum] {
-			cmd, issue, note := sandboxRowToCommand(preset, actorRefs, row, cmdHandler)
+			cmd, issue, note := sandboxRowToCommand(preset, maxTick, actorRefs, row, cmdHandler)
 			if issue != nil {
 				resp.ValidationIssues = append(resp.ValidationIssues, *issue)
 				continue
@@ -437,12 +457,12 @@ func sandboxMapForPreset(preset sandboxPresetDefinition) mapResponse {
 	}
 }
 
-func sandboxRowToCommand(preset sandboxPresetDefinition, refs map[string]sandboxActorRef, row sandboxTimelineRow, h *commandHandler) (ticker.Command, *sandboxValidationIssue, string) {
-	if row.Tick < 1 || row.Tick > preset.MaxTick {
+func sandboxRowToCommand(preset sandboxPresetDefinition, maxTick int, refs map[string]sandboxActorRef, row sandboxTimelineRow, h *commandHandler) (ticker.Command, *sandboxValidationIssue, string) {
+	if row.Tick < 1 || row.Tick > maxTick {
 		return ticker.Command{}, &sandboxValidationIssue{
 			RowID:  row.RowID,
 			Code:   "invalid_tick",
-			Reason: fmt.Sprintf("tick must be between 1 and %d", preset.MaxTick),
+			Reason: fmt.Sprintf("tick must be between 1 and %d", maxTick),
 		}, ""
 	}
 
