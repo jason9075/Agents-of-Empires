@@ -8,7 +8,7 @@ No other documentation is needed to make correct API calls.
 ## Overview
 
 - The game world is a **20×15 hexagonal grid** using **axial coordinates** `(q, r)`, where `0 ≤ q < 20` and `0 ≤ r < 15`.
-- Game time advances in **10-second ticks**. Commands submitted within a tick window are processed atomically at the next tick boundary.
+- Game time advances in ticks. The server default is **10 seconds per tick**, but startup flags may override it.
 - **Last-command-wins:** If you submit two commands for the same unit before the tick fires, only the most recent is executed. Previous commands for that unit are silently discarded.
 - Authenticate every request by setting the `X-Team-ID` header to `1` or `2`.
 - Base URL: `http://localhost:8080` (configurable via `--addr` flag on server start).
@@ -49,7 +49,7 @@ distance(a, b) = max( |a.q - b.q|, |a.r - b.r|, |(a.q + a.r) - (b.q + b.r)| )
 | `orchard`    | Yes      | `food`         | Villager can gather here         |
 | `deer`       | Yes      | `food`         | Villager can gather here         |
 
-Terrain layout is **static** — it never changes after the game starts.
+Blocking terrain is static after map generation, but exhausted resource tiles can become `plain`.
 
 ---
 
@@ -57,7 +57,9 @@ Terrain layout is **static** — it never changes after the game starts.
 
 ### `GET /map`
 
-Returns the complete static terrain grid. This response never changes; cache it after the first call.
+Returns the current terrain grid.
+
+This endpoint is **not static**. Resource depletion can change a tile to `plain`, so callers should refresh `/map` over time instead of caching it forever.
 
 **No authentication required.**
 
@@ -68,7 +70,7 @@ Returns the complete static terrain grid. This response never changes; cache it 
   "height": 15,
   "tiles": [
     { "coord": { "q": 0, "r": 0 }, "terrain": "plain" },
-    { "coord": { "q": 0, "r": 1 }, "terrain": "forest" },
+    { "coord": { "q": 0, "r": 1 }, "terrain": "forest", "remaining": 300 },
     ...
   ]
 }
@@ -94,6 +96,11 @@ Returns current game state filtered by your team's **Line of Sight (LOS)**.
     "stone": 100,
     "wood":  220
   },
+  "population": {
+    "used": 4,
+    "reserved": 1,
+    "cap": 20
+  },
   "units": [
     {
       "id": 2,
@@ -102,6 +109,8 @@ Returns current game state filtered by your team's **Line of Sight (LOS)**.
       "position": { "q": 5, "r": 4 },
       "hp": 25,
       "max_hp": 25,
+      "carry_resource": "food",
+      "carry_amount": 18,
       "friendly": true
     },
     {
@@ -111,6 +120,7 @@ Returns current game state filtered by your team's **Line of Sight (LOS)**.
       "position": { "q": 8, "r": 8 },
       "hp": 30,
       "max_hp": 30,
+      "attack_target_id": 2,
       "friendly": false
     }
   ],
@@ -122,6 +132,11 @@ Returns current game state filtered by your team's **Line of Sight (LOS)**.
       "position": { "q": 4, "r": 4 },
       "hp": 600,
       "max_hp": 600,
+      "complete": true,
+      "build_progress": 2,
+      "build_ticks_total": 2,
+      "production_queue_len": 1,
+      "production_ticks_remaining": 1,
       "friendly": true
     }
   ]
@@ -129,8 +144,9 @@ Returns current game state filtered by your team's **Line of Sight (LOS)**.
 ```
 
 **Field notes:**
-- `tick` — current game tick number (starts at 0, increments every 10 seconds).
+- `tick` — current game tick number (starts at 0 and increments once per server tick interval).
 - `resources` — your team's current stockpile only. Enemy resources are never exposed.
+- `population` — current living population, reserved queue population, and the hard team cap.
 - `units` / `buildings` — mix of friendly (`"friendly": true`) and visible enemy (`"friendly": false`) entities.
 - Enemy entities only appear if they are within the LOS radius of at least one of your units or buildings.
 
@@ -158,9 +174,9 @@ Submits an action for one of your units. Returns `202 Accepted` immediately; the
 | `MOVE_FAST`   | `target_coord`                           | Move toward target at full speed; no auto-engage          |
 | `MOVE_GUARD`  | `target_coord`                           | Move toward target at normal speed; auto-attacks enemies in LOS |
 | `ATTACK`      | `target_id`                              | Attack a specific unit or building by ID                  |
-| `GATHER`      | `target_coord`                           | Villager gathers from the resource tile at target_coord   |
+| `GATHER`      | `unit_id`                                | Villager gathers from its current tile, or deposits if already carrying beside a friendly `town_center` |
 | `BUILD`       | `target_coord`, `building_kind`          | Villager constructs a building at target_coord            |
-| `PRODUCE`     | `unit_id` (building ID), `unit_kind`     | Queue a unit in the specified building                    |
+| `PRODUCE`     | `building_id`, `unit_kind`               | Queue a unit in the specified building                    |
 
 **`building_kind` values:** `"barracks"`, `"stable"`, `"archery_range"`
 
@@ -168,9 +184,20 @@ Submits an action for one of your units. Returns `202 Accepted` immediately; the
 
 **Response codes:**
 - `202 Accepted` — command queued successfully.
-- `400 Bad Request` — malformed JSON or missing required fields.
+- `400 Bad Request` — malformed JSON, missing required fields, insufficient resources, population cap reached, or illegal command.
 - `403 Forbidden` — the unit does not belong to your team.
 - `404 Not Found` — unit ID does not exist.
+
+Error responses use this shape:
+
+```json
+{
+  "error": {
+    "code": "population_cap_reached",
+    "reason": "team population cap would be exceeded"
+  }
+}
+```
 
 ---
 
@@ -215,7 +242,8 @@ Buildings also provide LOS (radius 3) around their position.
 
 ## Fog of War
 
-- **Static terrain** (`GET /map`) is always fully visible to all teams.
+- **Terrain visibility** (`GET /map`) is always public to both teams.
+- `/map` is public, but resource depletion can still change returned terrain over time.
 - **Enemy units and buildings** only appear in `GET /state` when within the LOS radius of at least one friendly unit or building.
 - LOS is recalculated every tick. Enemies that move out of sight disappear from subsequent `/state` responses.
 - Your own units and buildings are **always** visible in `/state`.
@@ -226,15 +254,20 @@ Buildings also provide LOS (radius 3) around their position.
 
 All error responses use this shape:
 ```json
-{ "error": "description of what went wrong" }
+{
+  "error": {
+    "code": "insufficient_resources",
+    "reason": "team cannot afford this building"
+  }
+}
 ```
 
-| HTTP Status | Meaning                                      |
-|-------------|----------------------------------------------|
-| `400`       | Bad request (malformed JSON, missing fields) |
-| `403`       | Forbidden (wrong team for this unit)         |
-| `404`       | Entity not found                             |
-| `405`       | Method not allowed (wrong HTTP verb)         |
+| HTTP Status | Meaning |
+|-------------|---------|
+| `400` | Bad request, illegal command, insufficient resources, or population cap reached |
+| `403` | Forbidden (wrong team for this unit or building) |
+| `404` | Entity not found |
+| `405` | Method not allowed |
 
 ---
 
@@ -245,20 +278,20 @@ A minimal loop for an agent to start gathering resources:
 ```
 1. GET /map
    → Parse terrain grid, find nearby resource tiles (forest, gold_mine, etc.)
-   → Cache this response — the map never changes.
+   → Refresh this response over time, because depleted resource tiles can become `plain`.
 
 2. GET /state  (X-Team-ID: 1)
-   → Read `tick`, `resources`, and your unit/building list.
+   → Read `tick`, `resources`, `population`, and your unit/building list.
    → Identify villager unit IDs.
 
 3. POST /command  (X-Team-ID: 1)
-   Body: { "unit_id": 2, "kind": "GATHER", "target_coord": { "q": 6, "r": 4 } }
+   Body: { "unit_id": 2, "kind": "GATHER" }
    → 202 Accepted
 
-4. Wait ~10 seconds (one tick).
+4. Wait for one tick.
 
 5. GET /state  (X-Team-ID: 1)
-   → Verify `resources.wood` increased (or whichever resource was targeted).
+   → Verify the villager's `carry_amount` changed, or your stockpile increased if it deposited.
 
 6. Repeat from step 2, adjusting strategy based on current state.
 ```

@@ -387,6 +387,9 @@ func (w *World) EnqueueProduction(buildingID entity.EntityID, kind entity.UnitKi
 	if !w.canAffordLocked(b.Team(), cost) {
 		return false
 	}
+	if w.populationUsedLocked(b.Team())+w.populationReservedLocked(b.Team())+entity.UnitPopulation(kind) > entity.PopulationCap {
+		return false
+	}
 
 	w.payLocked(b.Team(), cost)
 	b.Enqueue(kind)
@@ -439,6 +442,26 @@ func (w *World) canAffordLocked(team entity.Team, cost entity.Cost) bool {
 		res.Gold >= cost.Gold &&
 		res.Stone >= cost.Stone &&
 		res.Wood >= cost.Wood
+}
+
+func (w *World) populationUsedLocked(team entity.Team) int {
+	total := 0
+	for _, u := range w.Units {
+		if u.IsAlive() && u.Team() == team {
+			total += entity.UnitPopulation(u.Kind())
+		}
+	}
+	return total
+}
+
+func (w *World) populationReservedLocked(team entity.Team) int {
+	total := 0
+	for _, b := range w.Buildings {
+		if b.IsAlive() && b.Team() == team {
+			total += b.ReservedPopulation()
+		}
+	}
+	return total
 }
 
 // CanAfford reports whether the team can pay the given cost.

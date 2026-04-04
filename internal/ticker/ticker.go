@@ -88,9 +88,13 @@ func (t *Ticker) step() {
 func (t *Ticker) recordIntent(cmd Command) {
 	if cmd.Kind == CmdAttack {
 		t.intents[cmd.UnitID] = cmd
+		if cmd.TargetID != nil {
+			t.world.SetUnitAttackTarget(cmd.UnitID, *cmd.TargetID)
+		}
 		return
 	}
 	delete(t.intents, cmd.UnitID)
+	t.world.ClearUnitAttackTarget(cmd.UnitID)
 }
 
 func (t *Ticker) resolveMovement(cmds []Command) {
@@ -168,6 +172,7 @@ func (t *Ticker) resolveCombat(cmds []Command) {
 	for unitID, cmd := range t.intents {
 		if cmd.TargetID == nil {
 			delete(t.intents, unitID)
+			t.world.ClearUnitAttackTarget(unitID)
 			continue
 		}
 		attacker := t.world.GetUnit(unitID)
@@ -181,6 +186,7 @@ func (t *Ticker) resolveCombat(cmds []Command) {
 		}
 		if t.world.GetUnit(*cmd.TargetID) == nil && t.world.GetBuilding(*cmd.TargetID) == nil {
 			delete(t.intents, unitID)
+			t.world.ClearUnitAttackTarget(unitID)
 		}
 	}
 
@@ -189,6 +195,11 @@ func (t *Ticker) resolveCombat(cmds []Command) {
 			continue
 		}
 		if targetID, ok := t.world.FindAutoAttackTarget(cmd.UnitID); ok {
+			targetIDCopy := targetID
+			t.intents[cmd.UnitID] = Command{
+				Team: cmd.Team, UnitID: cmd.UnitID, Kind: CmdAttack, TargetID: &targetIDCopy,
+			}
+			t.world.SetUnitAttackTarget(cmd.UnitID, targetID)
 			if amount, ok := t.world.PreviewAttackDamage(cmd.UnitID, targetID); ok {
 				damage[targetID] += amount
 			}

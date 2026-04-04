@@ -22,6 +22,8 @@ The following are implemented today:
 - Max HP
 - Attack
 - Defense
+- Unit production cost
+- Unit population usage
 - Basic attack range rules
 - `MOVE_FAST` speed
 - `MOVE_GUARD` speed
@@ -47,7 +49,7 @@ Important: the current implementation already applies movement, combat, gatherin
 
 - Role: economic worker / basic civilian
 - Special role: the only unit class that can gather resources and construct buildings
-- Produced by: starting spawn, later expected from `town_center`
+- Produced by: starting spawn and `town_center`
 - Max HP: 25
 - Attack: 3
 - Defense: 0
@@ -118,6 +120,24 @@ Important: the current implementation already applies movement, combat, gatherin
 - `MOVE_FAST`: 2 hexes per tick
 - `MOVE_GUARD`: 2 hexes per tick
 - LOS: 4
+
+## Economy and Population Notes
+
+- Team population cap is `20`
+- Every current unit kind consumes `1` population
+- Living units consume population
+- Queued units also reserve population once production is successfully enqueued
+
+### Unit Production Cost
+
+| Unit | Food | Wood | Gold | Stone | Population |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `villager` | `50` | `0` | `0` | `0` | `1` |
+| `infantry` | `60` | `20` | `0` | `0` | `1` |
+| `spearman` | `50` | `20` | `10` | `0` | `1` |
+| `archer` | `40` | `30` | `15` | `0` | `1` |
+| `scout_cavalry` | `70` | `20` | `20` | `0` | `1` |
+| `paladin` | `90` | `0` | `45` | `0` | `1` |
 
 ## Unit Stat Table
 

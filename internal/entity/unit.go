@@ -26,13 +26,14 @@ func (k UnitKind) String() string {
 
 // Unit represents a mobile entity on the map.
 type Unit struct {
-	id          EntityID
-	team        Team
-	kind        UnitKind
-	pos         hex.Coord
-	hp          int
-	carryType   terrain.ResourceType
-	carryAmount int
+	id             EntityID
+	team           Team
+	kind           UnitKind
+	pos            hex.Coord
+	hp             int
+	carryType      terrain.ResourceType
+	carryAmount    int
+	attackTargetID *EntityID
 }
 
 func NewUnit(id EntityID, team Team, kind UnitKind, pos hex.Coord) *Unit {
@@ -55,11 +56,22 @@ func (u *Unit) HP() int                         { return u.hp }
 func (u *Unit) MaxHP() int                      { return UnitSpecs[u.kind].Stats.MaxHP }
 func (u *Unit) CarryType() terrain.ResourceType { return u.carryType }
 func (u *Unit) CarryAmount() int                { return u.carryAmount }
-func (u *Unit) SetPosition(c hex.Coord)         { u.pos = c }
-func (u *Unit) SetHP(hp int)                    { u.hp = hp }
+func (u *Unit) AttackTargetID() (EntityID, bool) {
+	if u.attackTargetID == nil {
+		return 0, false
+	}
+	return *u.attackTargetID, true
+}
+func (u *Unit) SetPosition(c hex.Coord) { u.pos = c }
+func (u *Unit) SetHP(hp int)            { u.hp = hp }
 func (u *Unit) SetCarry(rt terrain.ResourceType, amount int) {
 	u.carryType = rt
 	u.carryAmount = amount
 }
-func (u *Unit) ClearCarry()      { u.carryType, u.carryAmount = terrain.ResourceNone, 0 }
-func (u *Unit) Stats() UnitStats { return UnitSpecs[u.kind].Stats }
+func (u *Unit) ClearCarry() { u.carryType, u.carryAmount = terrain.ResourceNone, 0 }
+func (u *Unit) SetAttackTarget(id EntityID) {
+	targetID := id
+	u.attackTargetID = &targetID
+}
+func (u *Unit) ClearAttackTarget() { u.attackTargetID = nil }
+func (u *Unit) Stats() UnitStats   { return UnitSpecs[u.kind].Stats }

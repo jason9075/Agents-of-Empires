@@ -9,6 +9,7 @@ import (
 
 	"github.com/jason9075/agents_of_dynasties/internal/entity"
 	"github.com/jason9075/agents_of_dynasties/internal/hex"
+	"github.com/jason9075/agents_of_dynasties/internal/terrain"
 	"github.com/jason9075/agents_of_dynasties/internal/ticker"
 	"github.com/jason9075/agents_of_dynasties/internal/world"
 )
@@ -84,6 +85,78 @@ func TestCommandHandler_InvalidProducerReturnsCodeAndReason(t *testing.T) {
 
 	rec := doCommandRequest(t, h, body, "1")
 	assertErrorResponse(t, rec, http.StatusBadRequest, "invalid_producer")
+}
+
+func TestCommandHandler_AccountsForPendingResourceReservations(t *testing.T) {
+	w := world.NewWorld(42)
+	q := ticker.NewQueue()
+	h := &commandHandler{w: w, q: q}
+
+	builder1 := w.UnitsByTeam(entity.Team1)[0]
+	builder2 := w.UnitsByTeam(entity.Team1)[1]
+	target1 := hex.Coord{Q: 6, R: 5}
+	target2 := hex.Coord{Q: 6, R: 6}
+
+	w.WriteFunc(func() {
+		builder1.SetPosition(hex.Coord{Q: 5, R: 5})
+		builder2.SetPosition(hex.Coord{Q: 5, R: 6})
+		w.Tiles[target1] = terrain.Tile{Coord: target1, Terrain: terrain.Plain}
+		w.Tiles[target2] = terrain.Tile{Coord: target2, Terrain: terrain.Plain}
+	})
+
+	first := map[string]any{
+		"unit_id":       builder1.ID(),
+		"kind":          "BUILD",
+		"building_kind": "stable",
+		"target_coord": map[string]any{
+			"q": target1.Q,
+			"r": target1.R,
+		},
+	}
+	if rec := doCommandRequest(t, h, first, "1"); rec.Code != http.StatusAccepted {
+		t.Fatalf("first build status = %d, want %d, body=%s", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+
+	second := map[string]any{
+		"unit_id":       builder2.ID(),
+		"kind":          "BUILD",
+		"building_kind": "stable",
+		"target_coord": map[string]any{
+			"q": target2.Q,
+			"r": target2.R,
+		},
+	}
+	rec := doCommandRequest(t, h, second, "1")
+	assertErrorResponse(t, rec, http.StatusBadRequest, "insufficient_resources")
+}
+
+func TestCommandHandler_RejectsProduceWhenPopulationCapWouldBeExceeded(t *testing.T) {
+	w := world.NewWorld(42)
+	q := ticker.NewQueue()
+	h := &commandHandler{w: w, q: q}
+
+	var tc *entity.Building
+	for _, b := range w.BuildingsByTeam(entity.Team1) {
+		if b.Kind() == entity.KindTownCenter {
+			tc = b
+			break
+		}
+	}
+	if tc == nil {
+		t.Fatalf("missing town center")
+	}
+	for i := len(w.UnitsByTeam(entity.Team1)); i < entity.PopulationCap; i++ {
+		w.SpawnUnit(entity.Team1, entity.KindInfantry, hex.Coord{Q: 10 + (i % 5), R: 5 + (i / 5)})
+	}
+
+	body := map[string]any{
+		"building_id": tc.ID(),
+		"kind":        "PRODUCE",
+		"unit_kind":   "villager",
+	}
+
+	rec := doCommandRequest(t, h, body, "1")
+	assertErrorResponse(t, rec, http.StatusBadRequest, "population_cap_reached")
 }
 
 type commandErrorEnvelope struct {

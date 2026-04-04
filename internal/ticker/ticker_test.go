@@ -154,12 +154,37 @@ func TestStep_AttackPersistsAcrossTicks(t *testing.T) {
 
 	q.Submit(Command{Team: entity.Team1, UnitID: attacker.ID(), Kind: CmdAttack, TargetID: ptrID(target.ID())})
 	tk.step()
+	if targetID, ok := w.GetUnit(attacker.ID()).AttackTargetID(); !ok || targetID != target.ID() {
+		t.Fatalf("expected attacker to expose active target after first tick")
+	}
 	hpAfterFirst := w.GetUnit(target.ID()).HP()
 	tk.step()
 	hpAfterSecond := w.GetUnit(target.ID()).HP()
 
 	if hpAfterSecond >= hpAfterFirst {
 		t.Fatalf("expected persistent attack to continue, hp1=%d hp2=%d", hpAfterFirst, hpAfterSecond)
+	}
+}
+
+func TestStep_AttackTargetClearsAfterTargetDies(t *testing.T) {
+	w := world.NewWorld(42)
+	q := NewQueue()
+	tk := New(w, q, time.Second)
+
+	attacker := w.SpawnUnit(entity.Team1, entity.KindArcher, hex.Coord{Q: 7, R: 7})
+	target := w.SpawnUnit(entity.Team2, entity.KindSpearman, hex.Coord{Q: 9, R: 7})
+	w.WriteFunc(func() {
+		target.SetHP(1)
+	})
+
+	q.Submit(Command{Team: entity.Team1, UnitID: attacker.ID(), Kind: CmdAttack, TargetID: ptrID(target.ID())})
+	tk.step()
+	if _, ok := w.GetUnit(attacker.ID()).AttackTargetID(); !ok {
+		t.Fatalf("expected attacker to still show target during kill tick")
+	}
+	tk.step()
+	if _, ok := w.GetUnit(attacker.ID()).AttackTargetID(); ok {
+		t.Fatalf("expected attack target to clear after target is gone")
 	}
 }
 

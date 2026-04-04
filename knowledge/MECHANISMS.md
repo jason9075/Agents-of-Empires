@@ -10,7 +10,7 @@ These rules are written against the current repository state:
 
 - Map size is `20x15`
 - Coordinates use axial hex coordinates `(q, r)`
-- The game advances in fixed `10-second` ticks
+- The game advances in fixed ticks, with `10s` as the default server interval
 - Commands are collected during a tick window and resolved at the next tick boundary
 - Command submission uses last-command-wins semantics per actor
 
@@ -34,7 +34,7 @@ The mechanisms in this file follow these priorities:
 - Enemy units may not stack.
 - Units may not enter a hex occupied by a building.
 - Buildings occupy exactly one hex.
-- Terrain is static and does not change after game start.
+- Blocking terrain is static after map generation, but exhausted resource tiles can change into `plain`.
 
 ### Terrain Access by Unit Type
 
@@ -63,7 +63,7 @@ Each tick is resolved in a fixed deterministic order.
 ### Resolution Order
 
 1. Freeze the command queue at the tick boundary.
-2. Merge queued commands with any persistent actor intent.
+2. Sort queued commands in deterministic actor order and merge them with any persistent actor intent.
 3. Validate commands against the current world state.
 4. Resolve movement.
 5. Resolve combat.
@@ -219,6 +219,7 @@ This means:
 
 - `PRODUCE` is issued by a building actor.
 - A building must be complete before it can accept `PRODUCE`.
+- A queued unit reserves population immediately once the enqueue succeeds.
 - Produced units must spawn on a legal adjacent hex.
 - If no legal adjacent hex is available, the produced unit remains queued and does not appear until a future tick with valid space.
 - Production time is tracked per queued unit kind.

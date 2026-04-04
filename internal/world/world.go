@@ -18,6 +18,12 @@ type Resources struct {
 	Wood  int `json:"wood"`
 }
 
+type PopulationSummary struct {
+	Used     int `json:"used"`
+	Reserved int `json:"reserved"`
+	Cap      int `json:"cap"`
+}
+
 // StartingResources is given to each team at T=0.
 var StartingResources = Resources{
 	Food:  200,
@@ -188,11 +194,48 @@ func (w *World) GetResources(team entity.Team) Resources {
 	return w.TeamRes[team]
 }
 
+// GetPopulationSummary returns current living and reserved population for a team.
+func (w *World) GetPopulationSummary(team entity.Team) PopulationSummary {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	summary := PopulationSummary{Cap: entity.PopulationCap}
+	for _, u := range w.Units {
+		if u.IsAlive() && u.Team() == team {
+			summary.Used += entity.UnitPopulation(u.Kind())
+		}
+	}
+	for _, b := range w.Buildings {
+		if b.IsAlive() && b.Team() == team {
+			summary.Reserved += b.ReservedPopulation()
+		}
+	}
+	return summary
+}
+
 // GetUnit returns the unit with the given ID, or nil.
 func (w *World) GetUnit(id entity.EntityID) *entity.Unit {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	return w.Units[id]
+}
+
+// SetUnitAttackTarget marks a unit as actively targeting another entity.
+func (w *World) SetUnitAttackTarget(unitID, targetID entity.EntityID) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if u := w.Units[unitID]; u != nil && u.IsAlive() {
+		u.SetAttackTarget(targetID)
+	}
+}
+
+// ClearUnitAttackTarget clears a unit's active attack target marker.
+func (w *World) ClearUnitAttackTarget(unitID entity.EntityID) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if u := w.Units[unitID]; u != nil {
+		u.ClearAttackTarget()
+	}
 }
 
 // GetBuilding returns the building with the given ID, or nil.

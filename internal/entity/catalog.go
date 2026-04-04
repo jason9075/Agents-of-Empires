@@ -25,6 +25,7 @@ type UnitSpec struct {
 	Name           string
 	Stats          UnitStats
 	Cost           Cost
+	Population     int
 	Producer       BuildingKind
 	Gatherer       bool
 	Builder        bool
@@ -43,11 +44,14 @@ type BuildingSpec struct {
 	TrainsUnits []UnitKind
 }
 
+const PopulationCap = 20
+
 var UnitSpecs = map[UnitKind]UnitSpec{
 	KindVillager: {
 		Name:           "villager",
 		Stats:          UnitStats{MaxHP: 25, Attack: 3, Defense: 0, SpeedFast: 2, SpeedGuard: 1, LOS: 2, AttackRange: 1},
 		Cost:           Cost{Food: 50},
+		Population:     1,
 		Producer:       KindTownCenter,
 		Gatherer:       true,
 		Builder:        true,
@@ -59,7 +63,8 @@ var UnitSpecs = map[UnitKind]UnitSpec{
 	KindInfantry: {
 		Name:           "infantry",
 		Stats:          UnitStats{MaxHP: 40, Attack: 8, Defense: 3, SpeedFast: 3, SpeedGuard: 2, LOS: 3, AttackRange: 1},
-		Cost:           Cost{Food: 60, Gold: 20},
+		Cost:           Cost{Food: 60, Wood: 20},
+		Population:     1,
 		Producer:       KindBarracks,
 		ForestPassable: true,
 		TrainTicks:     1,
@@ -67,7 +72,8 @@ var UnitSpecs = map[UnitKind]UnitSpec{
 	KindSpearman: {
 		Name:           "spearman",
 		Stats:          UnitStats{MaxHP: 45, Attack: 10, Defense: 4, SpeedFast: 2, SpeedGuard: 2, LOS: 3, AttackRange: 1},
-		Cost:           Cost{Food: 50, Wood: 20},
+		Cost:           Cost{Food: 50, Gold: 10, Wood: 20},
+		Population:     1,
 		Producer:       KindBarracks,
 		ForestPassable: true,
 		TrainTicks:     1,
@@ -75,7 +81,8 @@ var UnitSpecs = map[UnitKind]UnitSpec{
 	KindScoutCavalry: {
 		Name:           "scout_cavalry",
 		Stats:          UnitStats{MaxHP: 30, Attack: 6, Defense: 1, SpeedFast: 5, SpeedGuard: 3, LOS: 4, AttackRange: 1},
-		Cost:           Cost{Food: 70, Gold: 30},
+		Cost:           Cost{Food: 70, Gold: 20, Wood: 20},
+		Population:     1,
 		Producer:       KindStable,
 		ForestPassable: false,
 		TrainTicks:     2,
@@ -83,7 +90,8 @@ var UnitSpecs = map[UnitKind]UnitSpec{
 	KindPaladin: {
 		Name:           "paladin",
 		Stats:          UnitStats{MaxHP: 70, Attack: 12, Defense: 6, SpeedFast: 3, SpeedGuard: 2, LOS: 3, AttackRange: 1},
-		Cost:           Cost{Food: 90, Gold: 70},
+		Cost:           Cost{Food: 90, Gold: 45},
+		Population:     1,
 		Producer:       KindStable,
 		ForestPassable: false,
 		TrainTicks:     2,
@@ -91,7 +99,8 @@ var UnitSpecs = map[UnitKind]UnitSpec{
 	KindArcher: {
 		Name:           "archer",
 		Stats:          UnitStats{MaxHP: 30, Attack: 9, Defense: 1, SpeedFast: 2, SpeedGuard: 2, LOS: 4, AttackRange: 2},
-		Cost:           Cost{Food: 40, Wood: 30},
+		Cost:           Cost{Food: 40, Gold: 15, Wood: 30},
+		Population:     1,
 		Producer:       KindArcheryRange,
 		ForestPassable: true,
 		TrainTicks:     1,
@@ -107,7 +116,7 @@ var BuildingSpecs = map[BuildingKind]BuildingSpec{
 	KindBarracks: {
 		Name:        "barracks",
 		MaxHP:       400,
-		Cost:        Cost{Wood: 140},
+		Cost:        Cost{Stone: 60, Wood: 120},
 		Buildable:   true,
 		BuildTicks:  2,
 		TrainsUnits: []UnitKind{KindInfantry, KindSpearman},
@@ -115,7 +124,7 @@ var BuildingSpecs = map[BuildingKind]BuildingSpec{
 	KindStable: {
 		Name:        "stable",
 		MaxHP:       400,
-		Cost:        Cost{Wood: 160, Stone: 40},
+		Cost:        Cost{Gold: 20, Stone: 80, Wood: 140},
 		Buildable:   true,
 		BuildTicks:  2,
 		TrainsUnits: []UnitKind{KindScoutCavalry, KindPaladin},
@@ -123,7 +132,7 @@ var BuildingSpecs = map[BuildingKind]BuildingSpec{
 	KindArcheryRange: {
 		Name:        "archery_range",
 		MaxHP:       350,
-		Cost:        Cost{Wood: 130, Gold: 20},
+		Cost:        Cost{Stone: 60, Wood: 130},
 		Buildable:   true,
 		BuildTicks:  2,
 		TrainsUnits: []UnitKind{KindArcher},
@@ -191,6 +200,10 @@ func CounterBonus(attacker, defender UnitKind) int {
 
 func UnitCost(kind UnitKind) Cost {
 	return UnitSpecs[kind].Cost
+}
+
+func UnitPopulation(kind UnitKind) int {
+	return UnitSpecs[kind].Population
 }
 
 func BuildingCost(kind BuildingKind) Cost {

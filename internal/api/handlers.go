@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"sync"
 
 	"github.com/jason9075/agents_of_dynasties/internal/entity"
 	"github.com/jason9075/agents_of_dynasties/internal/hex"
@@ -15,21 +14,28 @@ import (
 // --- Response shapes ---
 
 type mapResponse struct {
-	Width  int            `json:"width"`
-	Height int            `json:"height"`
-	Tiles  []terrain.Tile `json:"tiles"`
+	Width  int        `json:"width"`
+	Height int        `json:"height"`
+	Tiles  []tileView `json:"tiles"`
+}
+
+type tileView struct {
+	Coord     coordView `json:"coord"`
+	Terrain   string    `json:"terrain"`
+	Remaining int       `json:"remaining,omitempty"`
 }
 
 type unitView struct {
-	ID            entity.EntityID `json:"id"`
-	Kind          string          `json:"kind"`
-	Team          entity.Team     `json:"team"`
-	Position      coordView       `json:"position"`
-	HP            int             `json:"hp"`
-	MaxHP         int             `json:"max_hp"`
-	CarryResource string          `json:"carry_resource,omitempty"`
-	CarryAmount   int             `json:"carry_amount"`
-	Friendly      bool            `json:"friendly"`
+	ID             entity.EntityID  `json:"id"`
+	Kind           string           `json:"kind"`
+	Team           entity.Team      `json:"team"`
+	Position       coordView        `json:"position"`
+	HP             int              `json:"hp"`
+	MaxHP          int              `json:"max_hp"`
+	CarryResource  string           `json:"carry_resource,omitempty"`
+	CarryAmount    int              `json:"carry_amount"`
+	AttackTargetID *entity.EntityID `json:"attack_target_id,omitempty"`
+	Friendly       bool             `json:"friendly"`
 }
 
 type buildingView struct {
@@ -52,19 +58,24 @@ type coordView struct {
 	R int `json:"r"`
 }
 
-type stateResponse struct {
-	Tick      uint64          `json:"tick"`
-	Resources world.Resources `json:"resources"`
-	Units     []unitView      `json:"units"`
-	Buildings []buildingView  `json:"buildings"`
+type populationView struct {
+	Used     int `json:"used"`
+	Reserved int `json:"reserved"`
+	Cap      int `json:"cap"`
 }
 
-// --- Map handler (cached after first call) ---
+type stateResponse struct {
+	Tick       uint64          `json:"tick"`
+	Resources  world.Resources `json:"resources"`
+	Population populationView  `json:"population"`
+	Units      []unitView      `json:"units"`
+	Buildings  []buildingView  `json:"buildings"`
+}
+
+// --- Map handler ---
 
 type mapHandler struct {
-	w    *world.World
-	once sync.Once
-	data []byte
+	w *world.World
 }
 
 func (h *mapHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -72,16 +83,23 @@ func (h *mapHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
 	}
-	h.once.Do(func() {
-		resp := mapResponse{
-			Width:  hex.GridWidth,
-			Height: hex.GridHeight,
-			Tiles:  h.w.AllTiles(),
-		}
-		h.data, _ = json.Marshal(resp)
-	})
+
+	rawTiles := h.w.AllTiles()
+	tiles := make([]tileView, 0, len(rawTiles))
+	for _, tile := range rawTiles {
+		tiles = append(tiles, tileView{
+			Coord:     coordView{Q: tile.Coord.Q, R: tile.Coord.R},
+			Terrain:   tile.Terrain.String(),
+			Remaining: h.w.ResourceAt(tile.Coord),
+		})
+	}
+	resp := mapResponse{
+		Width:  hex.GridWidth,
+		Height: hex.GridHeight,
+		Tiles:  tiles,
+	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(h.data)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // --- State handler ---
@@ -106,30 +124,40 @@ func (h *stateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var units []unitView
 	for _, u := range ownUnits {
 		pos := u.Position()
+		var attackTargetID *entity.EntityID
+		if id, ok := u.AttackTargetID(); ok {
+			attackTargetID = &id
+		}
 		units = append(units, unitView{
-			ID:            u.ID(),
-			Kind:          u.Kind().String(),
-			Team:          u.Team(),
-			Position:      coordView{Q: pos.Q, R: pos.R},
-			HP:            u.HP(),
-			MaxHP:         u.MaxHP(),
-			CarryResource: string(u.CarryType()),
-			CarryAmount:   u.CarryAmount(),
-			Friendly:      true,
+			ID:             u.ID(),
+			Kind:           u.Kind().String(),
+			Team:           u.Team(),
+			Position:       coordView{Q: pos.Q, R: pos.R},
+			HP:             u.HP(),
+			MaxHP:          u.MaxHP(),
+			CarryResource:  string(u.CarryType()),
+			CarryAmount:    u.CarryAmount(),
+			AttackTargetID: attackTargetID,
+			Friendly:       true,
 		})
 	}
 	for _, u := range enemyUnits {
 		pos := u.Position()
+		var attackTargetID *entity.EntityID
+		if id, ok := u.AttackTargetID(); ok {
+			attackTargetID = &id
+		}
 		units = append(units, unitView{
-			ID:            u.ID(),
-			Kind:          u.Kind().String(),
-			Team:          u.Team(),
-			Position:      coordView{Q: pos.Q, R: pos.R},
-			HP:            u.HP(),
-			MaxHP:         u.MaxHP(),
-			CarryResource: string(u.CarryType()),
-			CarryAmount:   u.CarryAmount(),
-			Friendly:      false,
+			ID:             u.ID(),
+			Kind:           u.Kind().String(),
+			Team:           u.Team(),
+			Position:       coordView{Q: pos.Q, R: pos.R},
+			HP:             u.HP(),
+			MaxHP:          u.MaxHP(),
+			CarryResource:  string(u.CarryType()),
+			CarryAmount:    u.CarryAmount(),
+			AttackTargetID: attackTargetID,
+			Friendly:       false,
 		})
 	}
 
@@ -170,10 +198,11 @@ func (h *stateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := stateResponse{
-		Tick:      h.w.GetTick(),
-		Resources: h.w.GetResources(team),
-		Units:     units,
-		Buildings: buildings,
+		Tick:       h.w.GetTick(),
+		Resources:  h.w.GetResources(team),
+		Population: toPopulationView(h.w.GetPopulationSummary(team)),
+		Units:      units,
+		Buildings:  buildings,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -183,9 +212,10 @@ func (h *stateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // --- Full state handler (god-mode, no LOS masking) ---
 
 type fullStateTeam struct {
-	Resources world.Resources `json:"resources"`
-	Units     []unitView      `json:"units"`
-	Buildings []buildingView  `json:"buildings"`
+	Resources  world.Resources `json:"resources"`
+	Population populationView  `json:"population"`
+	Units      []unitView      `json:"units"`
+	Buildings  []buildingView  `json:"buildings"`
 }
 
 type fullStateResponse struct {
@@ -208,16 +238,21 @@ func (h *fullStateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var units []unitView
 		for _, u := range h.w.UnitsByTeam(team) {
 			pos := u.Position()
+			var attackTargetID *entity.EntityID
+			if id, ok := u.AttackTargetID(); ok {
+				attackTargetID = &id
+			}
 			units = append(units, unitView{
-				ID:            u.ID(),
-				Kind:          u.Kind().String(),
-				Team:          u.Team(),
-				Position:      coordView{Q: pos.Q, R: pos.R},
-				HP:            u.HP(),
-				MaxHP:         u.MaxHP(),
-				CarryResource: string(u.CarryType()),
-				CarryAmount:   u.CarryAmount(),
-				Friendly:      true,
+				ID:             u.ID(),
+				Kind:           u.Kind().String(),
+				Team:           u.Team(),
+				Position:       coordView{Q: pos.Q, R: pos.R},
+				HP:             u.HP(),
+				MaxHP:          u.MaxHP(),
+				CarryResource:  string(u.CarryType()),
+				CarryAmount:    u.CarryAmount(),
+				AttackTargetID: attackTargetID,
+				Friendly:       true,
 			})
 		}
 		var buildings []buildingView
@@ -239,9 +274,10 @@ func (h *fullStateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 		return fullStateTeam{
-			Resources: h.w.GetResources(team),
-			Units:     units,
-			Buildings: buildings,
+			Resources:  h.w.GetResources(team),
+			Population: toPopulationView(h.w.GetPopulationSummary(team)),
+			Units:      units,
+			Buildings:  buildings,
 		}
 	}
 
@@ -395,7 +431,7 @@ func (h *commandHandler) validateBuild(cmd ticker.Command) (int, string, string)
 		return http.StatusBadRequest, "target_occupied", "build target is occupied"
 	}
 	cost := entity.BuildingCost(kind)
-	if !h.w.CanAfford(cmd.Team, cost) {
+	if !h.canAffordWithPending(cmd.Team, cost, cmd) {
 		return http.StatusBadRequest, "insufficient_resources", "team cannot afford this building"
 	}
 	return 0, "", ""
@@ -443,8 +479,92 @@ func (h *commandHandler) validateProduce(cmd ticker.Command) (int, string, strin
 		return http.StatusBadRequest, "invalid_producer", "this building cannot produce the requested unit kind"
 	}
 	cost := entity.UnitCost(kind)
-	if !h.w.CanAfford(cmd.Team, cost) {
+	if !h.canAffordWithPending(cmd.Team, cost, cmd) {
 		return http.StatusBadRequest, "insufficient_resources", "team cannot afford this unit"
 	}
+	if !h.canReservePopulationWithPending(cmd.Team, kind, cmd) {
+		return http.StatusBadRequest, "population_cap_reached", "team population cap would be exceeded"
+	}
 	return 0, "", ""
+}
+
+func toPopulationView(summary world.PopulationSummary) populationView {
+	return populationView{
+		Used:     summary.Used,
+		Reserved: summary.Reserved,
+		Cap:      summary.Cap,
+	}
+}
+
+func (h *commandHandler) canAffordWithPending(team entity.Team, cost entity.Cost, incoming ticker.Command) bool {
+	available := h.w.GetResources(team)
+	reserved, _ := h.pendingReservations(team, incoming)
+	available.Food -= reserved.Food
+	available.Gold -= reserved.Gold
+	available.Stone -= reserved.Stone
+	available.Wood -= reserved.Wood
+	return available.Food >= cost.Food &&
+		available.Gold >= cost.Gold &&
+		available.Stone >= cost.Stone &&
+		available.Wood >= cost.Wood
+}
+
+func (h *commandHandler) canReservePopulationWithPending(team entity.Team, unitKind entity.UnitKind, incoming ticker.Command) bool {
+	summary := h.w.GetPopulationSummary(team)
+	_, pendingPop := h.pendingReservations(team, incoming)
+	return summary.Used+summary.Reserved+pendingPop+entity.UnitPopulation(unitKind) <= summary.Cap
+}
+
+func (h *commandHandler) pendingReservations(team entity.Team, incoming ticker.Command) (world.Resources, int) {
+	var reserved world.Resources
+	reservedPop := 0
+
+	for _, pending := range h.q.Snapshot() {
+		if pending.Team != team || sameActor(pending, incoming) {
+			continue
+		}
+
+		switch pending.Kind {
+		case ticker.CmdBuild:
+			if pending.BuildingKind == nil {
+				continue
+			}
+			kind, ok := entity.ParseBuildingKind(*pending.BuildingKind)
+			if !ok {
+				continue
+			}
+			cost := entity.BuildingCost(kind)
+			reserved.Food += cost.Food
+			reserved.Gold += cost.Gold
+			reserved.Stone += cost.Stone
+			reserved.Wood += cost.Wood
+		case ticker.CmdProduce:
+			if pending.UnitKind == nil {
+				continue
+			}
+			kind, ok := entity.ParseUnitKind(*pending.UnitKind)
+			if !ok {
+				continue
+			}
+			cost := entity.UnitCost(kind)
+			reserved.Food += cost.Food
+			reserved.Gold += cost.Gold
+			reserved.Stone += cost.Stone
+			reserved.Wood += cost.Wood
+			reservedPop += entity.UnitPopulation(kind)
+		}
+	}
+
+	return reserved, reservedPop
+}
+
+func sameActor(a, b ticker.Command) bool {
+	switch {
+	case a.BuildingID != nil && b.BuildingID != nil:
+		return *a.BuildingID == *b.BuildingID
+	case a.BuildingID == nil && b.BuildingID == nil:
+		return a.UnitID == b.UnitID
+	default:
+		return false
+	}
 }

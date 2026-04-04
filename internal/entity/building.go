@@ -99,6 +99,14 @@ func (b *Building) DequeueNext() (UnitKind, bool) {
 // QueueLen returns how many units are queued.
 func (b *Building) QueueLen() int { return len(b.queue) }
 
+func (b *Building) ReservedPopulation() int {
+	total := 0
+	for _, item := range b.queue {
+		total += UnitPopulation(item.Kind)
+	}
+	return total
+}
+
 func (b *Building) QueueTicksRemaining() int {
 	if len(b.queue) == 0 {
 		return 0

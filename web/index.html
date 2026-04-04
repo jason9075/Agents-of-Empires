@@ -52,6 +52,26 @@
         color: #bbb;
       }
 
+      .top-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 28px;
+        padding: 0 0.8rem;
+        border: 1px solid #444;
+        border-radius: 999px;
+        background: #1b1b1b;
+        color: #c7d3da;
+        text-decoration: none;
+        font-size: 0.72rem;
+        letter-spacing: 0.05em;
+      }
+
+      .top-link:hover {
+        background: #282828;
+        color: #fff;
+      }
+
       .tick-badge {
         font-size: 0.8rem;
         color: #888;
@@ -253,6 +273,41 @@
         padding: 1px 0;
       }
 
+      .detail-list {
+        margin-top: 0.5rem;
+        font-size: 0.68rem;
+        color: #9aa3aa;
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+      }
+
+      .detail-card {
+        padding: 0.35rem 0.45rem;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .detail-card strong {
+        color: #f0f3f5;
+        font-weight: 600;
+      }
+
+      .detail-card.active {
+        border-color: rgba(255, 214, 102, 0.22);
+        background: rgba(255, 214, 102, 0.06);
+      }
+
+      .section-label {
+        margin-top: 0.55rem;
+        margin-bottom: 0.1rem;
+        font-size: 0.64rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #75808a;
+      }
+
       /* ── Legend ── */
       #legend {
         padding: 0.75rem;
@@ -382,6 +437,7 @@
   <body>
     <div id="topbar">
       <h1>🏰 AGENTS OF DYNASTIES</h1>
+      <a class="top-link" href="/sandbox.html">Sandbox</a>
       <div class="tick-badge">⏱ Tick <span id="tick-num">—</span></div>
       <div class="dot" id="live-dot" title="Live"></div>
       <div class="zoom-controls">
@@ -430,6 +486,10 @@
           <div class="stat-row">Buildings <span id="t1-buildings">—</span></div>
           <hr class="divider" />
           <div class="unit-list" id="t1-unit-list"></div>
+          <div class="section-label">Active</div>
+          <div class="detail-list" id="t1-activity-list"></div>
+          <div class="section-label">Buildings</div>
+          <div class="detail-list" id="t1-building-list"></div>
         </div>
 
         <!-- Team 2 -->
@@ -447,6 +507,10 @@
           <div class="stat-row">Buildings <span id="t2-buildings">—</span></div>
           <hr class="divider" />
           <div class="unit-list" id="t2-unit-list"></div>
+          <div class="section-label">Active</div>
+          <div class="detail-list" id="t2-activity-list"></div>
+          <div class="section-label">Buildings</div>
+          <div class="detail-list" id="t2-building-list"></div>
         </div>
 
         <!-- Legend -->
@@ -657,9 +721,14 @@
       }
 
       async function fetchState() {
+        const [mapRes, stateRes] = await Promise.all([fetch('/map'), fetch('/state/full')])
+        mapData = await mapRes.json()
+        tileMap = {}
+        for (const tile of mapData.tiles)
+          tileMap[`${tile.coord.q},${tile.coord.r}`] = tile
+
         const prevUnitsByID = buildUnitMap(gameState)
-        const res = await fetch('/state/full')
-        gameState = await res.json()
+        gameState = await stateRes.json()
         syncUnitAnimations(prevUnitsByID, gameState)
         entityMap = {}
         const add = (type, data) => {
@@ -715,6 +784,108 @@
           q: animation.from.q + (animation.to.q - animation.from.q) * eased,
           r: animation.from.r + (animation.to.r - animation.from.r) * eased,
         }
+      }
+
+      function formatKindLabel(kind) {
+        return kind.replace(/_/g, ' ')
+      }
+
+      function drawResourceRemaining(ctx, cx, cy, tile) {
+        if (!tile.remaining || tile.remaining <= 0) return
+        ctx.save()
+        ctx.fillStyle = 'rgba(12, 14, 18, 0.78)'
+        ctx.fillRect(cx - 16, cy + 10, 32, 15)
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)'
+        ctx.lineWidth = 0.8
+        ctx.strokeRect(cx - 16, cy + 10, 32, 15)
+        ctx.fillStyle = '#f4f7f8'
+        ctx.font = 'bold 10px system-ui'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(String(tile.remaining), cx, cy + 17.5)
+        ctx.restore()
+      }
+
+      function drawConstructionOverlay(ctx, cx, cy, building) {
+        if (building.complete) return
+        const ratio =
+          building.build_ticks_total > 0
+            ? building.build_progress / building.build_ticks_total
+            : 0
+        const width = HEX_SIZE * 1.1
+        const x = cx - width / 2
+        const y = cy + HEX_SIZE * 0.62
+
+        ctx.save()
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.58)'
+        ctx.fillRect(x, y, width, 8)
+        ctx.fillStyle = 'rgba(255, 208, 92, 0.92)'
+        ctx.fillRect(x, y, width * ratio, 8)
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)'
+        ctx.lineWidth = 1
+        ctx.strokeRect(x, y, width, 8)
+        ctx.fillStyle = '#fff3cf'
+        ctx.font = 'bold 10px system-ui'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'bottom'
+        ctx.fillText(`${building.build_progress}/${building.build_ticks_total}`, cx, y - 2)
+        ctx.restore()
+      }
+
+      function drawProductionOverlay(ctx, cx, cy, building) {
+        if (building.production_queue_len <= 0) return
+        ctx.save()
+        ctx.fillStyle = 'rgba(12, 14, 18, 0.82)'
+        ctx.fillRect(cx + 10, cy - 28, 30, 16)
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)'
+        ctx.lineWidth = 0.8
+        ctx.strokeRect(cx + 10, cy - 28, 30, 16)
+        ctx.fillStyle = '#cde3ff'
+        ctx.font = 'bold 10px system-ui'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(
+          `${building.production_queue_len}:${building.production_ticks_remaining}`,
+          cx + 25,
+          cy - 20,
+        )
+        ctx.restore()
+      }
+
+      function drawCarryOverlay(ctx, cx, cy, unit) {
+        if (!unit.carry_amount || unit.carry_amount <= 0) return
+        ctx.save()
+        ctx.fillStyle = 'rgba(12, 14, 18, 0.82)'
+        ctx.fillRect(cx + 10, cy + 8, 28, 14)
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)'
+        ctx.lineWidth = 0.8
+        ctx.strokeRect(cx + 10, cy + 8, 28, 14)
+        ctx.fillStyle = '#e5f1d0'
+        ctx.font = 'bold 10px system-ui'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(`${unit.carry_amount}`, cx + 24, cy + 15)
+        ctx.restore()
+      }
+
+      function drawAttackOverlay(ctx, cx, cy, unit) {
+        if (!unit.attack_target_id) return
+        const pulse = 0.78 + 0.22 * Math.sin(performance.now() / 180)
+        ctx.save()
+        ctx.strokeStyle =
+          unit.team === 1
+            ? `rgba(110, 195, 255, ${pulse})`
+            : `rgba(255, 122, 122, ${pulse})`
+        ctx.lineWidth = 2.4
+        ctx.beginPath()
+        ctx.arc(cx, cy, HEX_SIZE * 0.63, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.fillStyle = 'rgba(255, 244, 194, 0.92)'
+        ctx.font = 'bold 12px system-ui'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('!', cx, cy - HEX_SIZE * 0.74)
+        ctx.restore()
       }
 
       function syncUnitAnimations(prevUnitsByID, nextState) {
@@ -824,6 +995,8 @@
           ctx.strokeStyle = 'rgba(0,0,0,0.3)'
           ctx.lineWidth = 0.5
           ctx.stroke()
+
+          drawResourceRemaining(ctx, cx, cy, tile)
         }
 
         if (!gameState) {
@@ -841,6 +1014,10 @@
             cy = y + PAD
           const img = images[`assets/buildings/team${b.team}/${b.kind}.png`]
 
+          ctx.save()
+          if (!b.complete) {
+            ctx.globalAlpha = 0.58
+          }
           if (img) {
             const s = HEX_SIZE * 1.5
             ctx.drawImage(img, cx - s / 2, cy - s / 2, s, s)
@@ -858,6 +1035,10 @@
             ctx.textBaseline = 'middle'
             ctx.fillText(BLDG_ABBR[b.kind] || b.kind[0].toUpperCase(), cx, cy)
           }
+          ctx.restore()
+
+          drawConstructionOverlay(ctx, cx, cy, b)
+          drawProductionOverlay(ctx, cx, cy, b)
         }
 
         // ── 3. Units ──
@@ -889,6 +1070,9 @@
             ctx.textBaseline = 'middle'
             ctx.fillText(UNIT_ABBR[u.kind] || u.kind[0].toUpperCase(), cx, cy)
           }
+
+          drawAttackOverlay(ctx, cx, cy, u)
+          drawCarryOverlay(ctx, cx, cy, u)
         }
 
         ctx.restore() // undo ctx.scale(zoomScale)
@@ -918,18 +1102,64 @@
           ).length
 
           const counts = {}
-          for (const u of t.units || [])
-            counts[u.kind] = (counts[u.kind] || 0) + 1
+          for (const u of t.units || []) {
+            const carry =
+              u.carry_amount > 0 ? ` [${u.carry_amount} ${u.carry_resource}]` : ''
+            counts[`${u.kind}${carry}`] = (counts[`${u.kind}${carry}`] || 0) + 1
+          }
           const listEl = document.getElementById(`${prefix}-unit-list`)
           listEl.innerHTML = ''
           for (const [kind, n] of Object.entries(counts)) {
             const row = document.createElement('div')
             row.className = 'unit-row'
-            row.innerHTML = `<span>${kind.replace(
-              /_/g,
-              ' ',
-            )}</span><span>${n}</span>`
+            row.innerHTML = `<span>${formatKindLabel(kind)}</span><span>${n}</span>`
             listEl.appendChild(row)
+          }
+
+          const activityListEl = document.getElementById(`${prefix}-activity-list`)
+          activityListEl.innerHTML = ''
+          for (const u of t.units || []) {
+            if (!u.carry_amount || u.carry_amount <= 0) continue
+            const card = document.createElement('div')
+            card.className = 'detail-card active'
+            card.innerHTML = `<strong>#${u.id}</strong> ${formatKindLabel(u.kind)}<br>carrying ${u.carry_amount} ${u.carry_resource}`
+            activityListEl.appendChild(card)
+          }
+          for (const u of t.units || []) {
+            if (!u.attack_target_id) continue
+            const card = document.createElement('div')
+            card.className = 'detail-card active'
+            card.innerHTML = `<strong>#${u.id}</strong> ${formatKindLabel(u.kind)}<br>attacking #${u.attack_target_id}`
+            activityListEl.appendChild(card)
+          }
+
+          const buildingListEl = document.getElementById(`${prefix}-building-list`)
+          buildingListEl.innerHTML = ''
+          for (const b of t.buildings || []) {
+            const card = document.createElement('div')
+            card.className = `detail-card${!b.complete || b.production_queue_len > 0 ? ' active' : ''}`
+            const buildState = b.complete
+              ? 'complete'
+              : `building ${b.build_progress}/${b.build_ticks_total}`
+            const queueState =
+              b.production_queue_len > 0
+                ? `queue ${b.production_queue_len}, next ${b.production_ticks_remaining}t`
+                : 'queue empty'
+            card.innerHTML = `<strong>#${b.id}</strong> ${formatKindLabel(b.kind)}<br>${buildState}<br>${queueState}`
+            buildingListEl.appendChild(card)
+            if (!b.complete || b.production_queue_len > 0) {
+              const activeCard = document.createElement('div')
+              activeCard.className = 'detail-card active'
+              activeCard.innerHTML = `<strong>#${b.id}</strong> ${formatKindLabel(b.kind)}<br>${buildState}<br>${queueState}`
+              activityListEl.appendChild(activeCard)
+            }
+          }
+
+          if (!activityListEl.childElementCount) {
+            const empty = document.createElement('div')
+            empty.className = 'detail-card'
+            empty.textContent = 'No active gather, construction, or production.'
+            activityListEl.appendChild(empty)
           }
         }
 
@@ -1009,13 +1239,27 @@
           return
         }
 
-        let html = `<b>(${q}, ${r})</b> ${tile.terrain.replace(/_/g, ' ')}`
+        let html = `<b>(${q}, ${r})</b> ${formatKindLabel(tile.terrain)}`
+        if (tile.remaining > 0) {
+          html += `<br>Remaining ${tile.remaining}`
+        }
         if (entities) {
           for (const { type, data } of entities) {
-            html += `<br>#${data.id} · Team ${data.team} · ${data.kind.replace(
-              /_/g,
-              ' ',
-            )} HP ${data.hp}/${data.max_hp}`
+            if (type === 'unit') {
+              html += `<br>#${data.id} · Team ${data.team} · ${formatKindLabel(data.kind)} HP ${data.hp}/${data.max_hp}`
+              if (data.carry_amount > 0) {
+                html += `<br>&nbsp;&nbsp;Carry ${data.carry_amount} ${data.carry_resource}`
+              }
+              if (data.attack_target_id) {
+                html += `<br>&nbsp;&nbsp;Attacking #${data.attack_target_id}`
+              }
+              continue
+            }
+            html += `<br>#${data.id} · Team ${data.team} · ${formatKindLabel(data.kind)} HP ${data.hp}/${data.max_hp}`
+            html += `<br>&nbsp;&nbsp;${data.complete ? 'Complete' : `Building ${data.build_progress}/${data.build_ticks_total}`}`
+            if (data.production_queue_len > 0) {
+              html += `<br>&nbsp;&nbsp;Queue ${data.production_queue_len}, next ${data.production_ticks_remaining}t`
+            }
           }
         }
 
@@ -1041,7 +1285,6 @@
 
       async function fetchAndDraw() {
         try {
-          if (!mapData) await fetchMap()
           await fetchState()
           drawMap()
           updateSidebar()

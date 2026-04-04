@@ -98,8 +98,9 @@ func TestBuildStructure_VillagerStartsBarracksConstruction(t *testing.T) {
 	}
 
 	after := w.GetResources(entity.Team1)
-	if after.Wood != start.Wood-entity.BuildingCost(entity.KindBarracks).Wood {
-		t.Fatalf("wood = %d, want %d", after.Wood, start.Wood-entity.BuildingCost(entity.KindBarracks).Wood)
+	cost := entity.BuildingCost(entity.KindBarracks)
+	if after.Wood != start.Wood-cost.Wood || after.Stone != start.Stone-cost.Stone {
+		t.Fatalf("resources = %+v, want wood=%d stone=%d", after, start.Wood-cost.Wood, start.Stone-cost.Stone)
 	}
 }
 
@@ -170,8 +171,8 @@ func TestEnqueueProduction_AndProcessProduction(t *testing.T) {
 
 	after := w.GetResources(entity.Team1)
 	cost := entity.UnitCost(entity.KindInfantry)
-	if after.Food != start.Food-cost.Food || after.Gold != start.Gold-cost.Gold {
-		t.Fatalf("resources after production = %+v, want food=%d gold=%d", after, start.Food-cost.Food, start.Gold-cost.Gold)
+	if after.Food != start.Food-cost.Food || after.Wood != start.Wood-cost.Wood {
+		t.Fatalf("resources after production = %+v, want food=%d wood=%d", after, start.Food-cost.Food, start.Wood-cost.Wood)
 	}
 }
 
@@ -191,5 +192,18 @@ func TestEnqueueProduction_RespectsMultiTickTraining(t *testing.T) {
 	w.ProcessProduction()
 	if len(w.UnitsByTeam(entity.Team1)) != startUnits+1 {
 		t.Fatalf("paladin should spawn on second production tick")
+	}
+}
+
+func TestEnqueueProduction_RejectsWhenPopulationCapReached(t *testing.T) {
+	w := NewWorld(42)
+	stable := w.SpawnBuilding(entity.Team1, entity.KindStable, hex.Coord{Q: 8, R: 7})
+
+	for i := len(w.UnitsByTeam(entity.Team1)); i < entity.PopulationCap; i++ {
+		w.SpawnUnit(entity.Team1, entity.KindInfantry, hex.Coord{Q: 10 + (i % 5), R: 5 + (i / 5)})
+	}
+
+	if w.EnqueueProduction(stable.ID(), entity.KindScoutCavalry) {
+		t.Fatalf("expected production enqueue to fail at population cap")
 	}
 }
