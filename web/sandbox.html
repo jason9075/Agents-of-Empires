@@ -1350,6 +1350,10 @@
         ]
       }
 
+      function snapshotTiles(snapshot) {
+        return snapshot?.tiles || mapData?.tiles || []
+      }
+
       function renderSnapshotSummary(snapshot) {
         const buildings = combinedBuildings(snapshot)
         const completeBuildings = buildings.filter((building) => building.complete).length
@@ -1442,7 +1446,7 @@
         canvas.height = logicalHeight
         ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-        for (const tile of mapData.tiles || []) {
+        for (const tile of snapshotTiles(snapshot)) {
           const { x, y } = hexToPixel(tile.coord.q, tile.coord.r)
           const cx = x + PAD
           const cy = y + PAD
@@ -1538,6 +1542,11 @@
         renderTickControls()
         if (snapshots.length === 0) return
         const snapshot = snapshots[currentTick]
+        tileMap = AODMapUI.buildTileMap({
+          width: mapData?.width || 0,
+          height: mapData?.height || 0,
+          tiles: snapshotTiles(snapshot),
+        })
         entityMap = AODMapUI.buildEntityMap(snapshot)
         renderSnapshotSummary(snapshot)
         renderDetails(snapshot)
