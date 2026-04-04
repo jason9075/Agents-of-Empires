@@ -262,6 +262,41 @@ func TestStep_MoveFastPersistsAcrossTicksUntilArrival(t *testing.T) {
 	}
 }
 
+func TestStep_MoveFastRoutesAroundLakeBarrier(t *testing.T) {
+	w := world.NewWorld(42)
+	q := NewQueue()
+	tk := New(w, q, time.Second)
+
+	unit := w.SpawnUnit(entity.Team1, entity.KindInfantry, hex.Coord{Q: 2, R: 5})
+	target := hex.Coord{Q: 8, R: 5}
+
+	w.WriteFunc(func() {
+		for q := 1; q <= 9; q++ {
+			for r := 2; r <= 8; r++ {
+				c := hex.Coord{Q: q, R: r}
+				w.Tiles[c] = terrain.Tile{Coord: c, Terrain: terrain.Plain}
+			}
+		}
+		for _, c := range []hex.Coord{
+			{Q: 4, R: 3},
+			{Q: 4, R: 4},
+			{Q: 4, R: 5},
+			{Q: 4, R: 6},
+		} {
+			w.Tiles[c] = terrain.Tile{Coord: c, Terrain: terrain.Lake}
+		}
+	})
+
+	q.Submit(Command{Team: entity.Team1, UnitID: unit.ID(), Kind: CmdMoveFast, TargetCoord: &target})
+	for i := 0; i < 4; i++ {
+		tk.step()
+	}
+
+	if got := w.GetUnit(unit.ID()).Position(); got != target {
+		t.Fatalf("expected unit to route around barrier and reach %v, got %v", target, got)
+	}
+}
+
 func TestStep_GatherAutoShuttlesUntilDeposit(t *testing.T) {
 	w := world.NewWorld(42)
 	q := NewQueue()

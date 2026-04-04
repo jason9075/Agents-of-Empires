@@ -21,6 +21,13 @@ type Ticker struct {
 	done     chan struct{}
 }
 
+type movementPlan struct {
+	goals   []hex.Coord
+	goalSet map[hex.Coord]struct{}
+	speed   int
+	phase   entity.UnitStatusPhase
+}
+
 // New creates a Ticker. Call Start to begin the game loop.
 func New(w *world.World, q *Queue, interval time.Duration) *Ticker {
 	return &Ticker{
@@ -132,20 +139,20 @@ func (t *Ticker) applySubmittedCommands(cmds []Command, tick uint64) {
 }
 
 func (t *Ticker) resolveMovement() {
-	moveCmds := make(map[entity.EntityID]hex.Coord)
+	movePlans := make(map[entity.EntityID]movementPlan)
 	remaining := make(map[entity.EntityID]int)
 	maxSteps := 0
 
 	for _, u := range t.allUnits() {
-		target, speed, phase, ok := t.movementDirective(u)
-		if !ok || speed <= 0 {
+		plan, ok := t.movementDirective(u)
+		if !ok || plan.speed <= 0 || len(plan.goals) == 0 {
 			continue
 		}
-		u.SetStatusPhase(phase)
-		moveCmds[u.ID()] = target
-		remaining[u.ID()] = speed
-		if speed > maxSteps {
-			maxSteps = speed
+		u.SetStatusPhase(plan.phase)
+		movePlans[u.ID()] = plan
+		remaining[u.ID()] = plan.speed
+		if plan.speed > maxSteps {
+			maxSteps = plan.speed
 		}
 	}
 
@@ -154,11 +161,11 @@ func (t *Ticker) resolveMovement() {
 		proposals := make(map[hex.Coord][]entity.EntityID)
 		destByUnit := make(map[entity.EntityID]hex.Coord)
 
-		for unitID, target := range moveCmds {
+		for unitID, plan := range movePlans {
 			if stopped[unitID] || remaining[unitID] <= 0 {
 				continue
 			}
-			next, ok := t.world.PreviewMoveStep(unitID, target)
+			next, ok := t.world.PreviewMoveStepToAny(unitID, plan.goals)
 			if !ok {
 				stopped[unitID] = true
 				continue
@@ -185,7 +192,7 @@ func (t *Ticker) resolveMovement() {
 		t.world.ApplyUnitMoves(accepted)
 		for unitID := range accepted {
 			remaining[unitID]--
-			if remaining[unitID] <= 0 || destByUnit[unitID] == moveCmds[unitID] {
+			if remaining[unitID] <= 0 || movePlans[unitID].isGoal(destByUnit[unitID]) {
 				stopped[unitID] = true
 			}
 		}
@@ -338,94 +345,63 @@ func (t *Ticker) cleanupAttackStatuses() {
 	}
 }
 
-func (t *Ticker) movementDirective(u *entity.Unit) (hex.Coord, int, entity.UnitStatusPhase, bool) {
+func (t *Ticker) movementDirective(u *entity.Unit) (movementPlan, bool) {
 	switch u.Status() {
 	case entity.StatusMovingFast:
 		target, ok := u.StatusTargetCoord()
 		if !ok || u.Position() == target {
-			return hex.Coord{}, 0, entity.PhaseNone, false
+			return movementPlan{}, false
 		}
-		return target, u.Stats().SpeedFast, entity.PhaseMovingToTarget, true
+		return newMovementPlan([]hex.Coord{target}, u.Stats().SpeedFast, entity.PhaseMovingToTarget)
 	case entity.StatusMovingGuard:
 		if _, ok := t.world.FindAutoAttackTarget(u.ID()); ok {
-			return hex.Coord{}, 0, entity.PhaseAttacking, false
+			return movementPlan{}, false
 		}
 		target, ok := u.StatusTargetCoord()
 		if !ok || u.Position() == target {
-			return hex.Coord{}, 0, entity.PhaseNone, false
+			return movementPlan{}, false
 		}
-		return target, u.Stats().SpeedGuard, entity.PhaseMovingToTarget, true
+		return newMovementPlan([]hex.Coord{target}, u.Stats().SpeedGuard, entity.PhaseMovingToTarget)
 	case entity.StatusAttacking:
 		targetID, ok := u.StatusTargetID()
 		if !ok {
-			return hex.Coord{}, 0, entity.PhaseNone, false
+			return movementPlan{}, false
 		}
 		if _, ok := t.world.PreviewAttackDamage(u.ID(), targetID); ok {
-			return hex.Coord{}, 0, entity.PhaseAttacking, false
+			return movementPlan{}, false
 		}
 		targetPos, ok := t.targetPosition(targetID)
 		if !ok {
-			return hex.Coord{}, 0, entity.PhaseNone, false
+			return movementPlan{}, false
 		}
-		return targetPos, u.Stats().SpeedGuard, entity.PhaseClosingToAttack, true
+		return newMovementPlan(t.attackApproachTargets(u, targetPos), u.Stats().SpeedGuard, entity.PhaseClosingToAttack)
 	case entity.StatusGathering:
 		target, ok := u.StatusTargetCoord()
 		if !ok {
-			return hex.Coord{}, 0, entity.PhaseNone, false
+			return movementPlan{}, false
 		}
 		if u.CarryAmount() > 0 {
-			tc, ok := t.world.FindNearestFriendlyTownCenter(u.Team(), u.Position())
-			if !ok {
-				return hex.Coord{}, 0, entity.PhaseNone, false
-			}
 			if t.world.CanDepositCarry(u.ID()) {
-				return hex.Coord{}, 0, entity.PhaseDepositing, false
+				return movementPlan{}, false
 			}
-			return tc, u.Stats().SpeedFast, entity.PhaseReturning, true
+			return newMovementPlan(t.depositTargets(u), u.Stats().SpeedFast, entity.PhaseReturning)
 		}
 		if !t.world.IsGatherableResource(target) || u.Position() == target {
-			return hex.Coord{}, 0, entity.PhaseGathering, false
+			return movementPlan{}, false
 		}
-		return target, u.Stats().SpeedFast, entity.PhaseMovingToResource, true
+		return newMovementPlan([]hex.Coord{target}, u.Stats().SpeedFast, entity.PhaseMovingToResource)
 	case entity.StatusBuilding:
 		target, ok := u.StatusTargetCoord()
 		if !ok {
-			return hex.Coord{}, 0, entity.PhaseNone, false
+			return movementPlan{}, false
 		}
 		if hex.Distance(u.Position(), target) <= 1 {
-			return hex.Coord{}, 0, entity.PhaseConstructing, false
+			return movementPlan{}, false
 		}
-		moveTarget, ok := t.buildApproachTarget(u, target)
-		if !ok {
-			return hex.Coord{}, 0, entity.PhaseMovingToBuild, false
-		}
-		return moveTarget, u.Stats().SpeedFast, entity.PhaseMovingToBuild, true
+		return newMovementPlan(t.buildApproachTargets(u, target), u.Stats().SpeedFast, entity.PhaseMovingToBuild)
 	default:
-		return hex.Coord{}, 0, entity.PhaseNone, false
+		return movementPlan{}, false
 	}
-}
-
-func (t *Ticker) buildApproachTarget(u *entity.Unit, target hex.Coord) (hex.Coord, bool) {
-	bestDist := -1
-	best := hex.Coord{}
-	for _, candidate := range hex.Ring(target, 1) {
-		if !hex.InBounds(candidate) {
-			continue
-		}
-		if candidate == u.Position() {
-			return candidate, true
-		}
-		tile, ok := t.world.Tile(candidate)
-		if !ok || !entity.UnitCanEnterTerrain(u.Kind(), tile.Terrain) || !t.world.CanOccupy(candidate) {
-			continue
-		}
-		dist := hex.Distance(u.Position(), candidate)
-		if bestDist == -1 || dist < bestDist {
-			best = candidate
-			bestDist = dist
-		}
-	}
-	return best, bestDist != -1
 }
 
 func (t *Ticker) targetPosition(id entity.EntityID) (hex.Coord, bool) {
@@ -447,4 +423,68 @@ func (t *Ticker) allUnits() []*entity.Unit {
 	units := append(t.world.UnitsByTeam(entity.Team1), t.world.UnitsByTeam(entity.Team2)...)
 	sort.Slice(units, func(i, j int) bool { return units[i].ID() < units[j].ID() })
 	return units
+}
+
+func newMovementPlan(goals []hex.Coord, speed int, phase entity.UnitStatusPhase) (movementPlan, bool) {
+	goalSet := make(map[hex.Coord]struct{}, len(goals))
+	filtered := make([]hex.Coord, 0, len(goals))
+	for _, goal := range goals {
+		if !hex.InBounds(goal) {
+			continue
+		}
+		if _, exists := goalSet[goal]; exists {
+			continue
+		}
+		goalSet[goal] = struct{}{}
+		filtered = append(filtered, goal)
+	}
+	if speed <= 0 || len(filtered) == 0 {
+		return movementPlan{}, false
+	}
+	return movementPlan{
+		goals:   filtered,
+		goalSet: goalSet,
+		speed:   speed,
+		phase:   phase,
+	}, true
+}
+
+func (p movementPlan) isGoal(c hex.Coord) bool {
+	_, ok := p.goalSet[c]
+	return ok
+}
+
+func (t *Ticker) attackApproachTargets(u *entity.Unit, target hex.Coord) []hex.Coord {
+	var out []hex.Coord
+	for _, candidate := range hex.Circle(target, entity.AttackRange(u.Kind())) {
+		if t.world.CanUnitOccupy(u.Kind(), candidate, u.ID()) {
+			out = append(out, candidate)
+		}
+	}
+	return out
+}
+
+func (t *Ticker) depositTargets(u *entity.Unit) []hex.Coord {
+	var out []hex.Coord
+	for _, b := range t.world.BuildingsByTeam(u.Team()) {
+		if !b.IsAlive() || !b.IsComplete() || b.Kind() != entity.KindTownCenter {
+			continue
+		}
+		for _, candidate := range hex.Ring(b.Position(), 1) {
+			if candidate == u.Position() || t.world.CanUnitOccupy(u.Kind(), candidate, u.ID()) {
+				out = append(out, candidate)
+			}
+		}
+	}
+	return out
+}
+
+func (t *Ticker) buildApproachTargets(u *entity.Unit, target hex.Coord) []hex.Coord {
+	var out []hex.Coord
+	for _, candidate := range hex.Ring(target, 1) {
+		if candidate == u.Position() || t.world.CanUnitOccupy(u.Kind(), candidate, u.ID()) {
+			out = append(out, candidate)
+		}
+	}
+	return out
 }

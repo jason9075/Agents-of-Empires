@@ -380,6 +380,22 @@
         cursor: default;
       }
 
+      #tooltip {
+        position: fixed;
+        background: rgba(15, 24, 30, 0.96);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 10px;
+        padding: 0.5rem 0.65rem;
+        font-size: 0.74rem;
+        color: var(--text);
+        pointer-events: none;
+        display: none;
+        z-index: 100;
+        max-width: 220px;
+        line-height: 1.5;
+        box-shadow: var(--shadow);
+      }
+
       .details {
         display: grid;
         grid-template-rows: auto minmax(0, 1fr);
@@ -656,6 +672,9 @@
       </div>
     </div>
 
+    <div id="tooltip"></div>
+
+    <script src="/shared-map.js"></script>
     <script>
       const HEX_SIZE = 42
       const SQRT3 = Math.sqrt(3)
@@ -666,6 +685,31 @@
       const SUPPORTED_BUILDINGS = ['barracks', 'stable', 'archery_range']
       const AUTO_EXTEND_TICKS = 12
       const AUTO_EXTEND_BUFFER = 3
+      const ALL_TERRAINS = [
+        'plain',
+        'forest',
+        'mountain',
+        'lake',
+        'gold_mine',
+        'stone_mine',
+        'orchard',
+        'deer',
+      ]
+      const ALL_UNIT_KINDS = [
+        'villager',
+        'infantry',
+        'spearman',
+        'scout_cavalry',
+        'paladin',
+        'archer',
+      ]
+      const ALL_BLDG_KINDS = [
+        'town_center',
+        'barracks',
+        'stable',
+        'archery_range',
+      ]
+      const formatLabel = AODMapUI.formatKindLabel
 
       const TEAM_COLOR = {
         1: '#5ba4f5',
@@ -699,11 +743,15 @@
         archer: 'AR',
       }
 
+      const images = {}
+
       let rowCounter = 0
       let presetList = []
       let currentPresetId = ''
       let currentPreset = null
       let mapData = null
+      let tileMap = {}
+      let entityMap = {}
       let defaultTimeline = []
       let editorRows = []
       let validationByRow = {}
@@ -726,10 +774,6 @@
           .replaceAll('<', '&lt;')
           .replaceAll('>', '&gt;')
           .replaceAll('"', '&quot;')
-      }
-
-      function formatLabel(value) {
-        return String(value).replace(/_/g, ' ')
       }
 
       function hexToPixel(q, r) {
@@ -943,8 +987,10 @@
       function applySimulation(data, { resetTick = false } = {}) {
         currentPreset = data.preset
         mapData = data.map
+        tileMap = AODMapUI.buildTileMap(mapData)
         validationByRow = issueMapByRow(data.validation_issues)
         snapshots = data.snapshots || []
+        entityMap = {}
         simulationMaxTick = Math.max(0, data.preset?.max_tick || snapshots.length - 1)
 
         if (resetTick) {
@@ -1310,73 +1356,84 @@
           hexPath(ctx, cx, cy)
           ctx.fillStyle = TERRAIN_COLOR[tile.terrain] || '#3b4a53'
           ctx.fill()
+
+          const img = images[`assets/terrain/${tile.terrain}.png`]
+          if (img) {
+            ctx.save()
+            hexPath(ctx, cx, cy)
+            ctx.clip()
+            const iw = HEX_SIZE * SQRT3
+            const ih = HEX_SIZE * 2
+            ctx.drawImage(img, cx - iw / 2, cy - ih / 2, iw, ih)
+            ctx.restore()
+          }
+
           hexPath(ctx, cx, cy)
           ctx.strokeStyle = 'rgba(0,0,0,0.35)'
           ctx.lineWidth = 1
           ctx.stroke()
-
-          ctx.fillStyle = 'rgba(255,255,255,0.58)'
-          ctx.font = '11px "SF Mono", monospace'
-          ctx.textAlign = 'center'
-          ctx.textBaseline = 'middle'
-          ctx.fillText(`${tile.coord.q},${tile.coord.r}`, cx, cy + HEX_SIZE * 0.58)
+          AODMapUI.drawResourceRemaining(ctx, cx, cy, tile)
         }
 
         for (const building of combinedBuildings(snapshot)) {
           const { x, y } = hexToPixel(building.position.q, building.position.r)
           const cx = x + PAD
           const cy = y + PAD
-          const size = HEX_SIZE * 0.95
+          const img = images[`assets/buildings/team${building.team}/${building.kind}.png`]
 
           ctx.save()
           if (!building.complete) {
             ctx.globalAlpha = 0.6
           }
-          ctx.fillStyle = TEAM_COLOR[building.team] || '#8ca0b0'
-          ctx.strokeStyle = 'rgba(0,0,0,0.45)'
-          ctx.lineWidth = 1.3
-          ctx.fillRect(cx - size / 2, cy - size / 2, size, size)
-          ctx.strokeRect(cx - size / 2, cy - size / 2, size, size)
-          ctx.fillStyle = '#f8fafc'
-          ctx.font = 'bold 13px "SF Mono", monospace'
-          ctx.textAlign = 'center'
-          ctx.textBaseline = 'middle'
-          ctx.fillText(BUILDING_ABBR[building.kind] || '?', cx, cy)
+          if (img) {
+            const size = HEX_SIZE * 1.5
+            ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size)
+          } else {
+            const size = HEX_SIZE * 0.95
+            ctx.fillStyle = TEAM_COLOR[building.team] || '#8ca0b0'
+            ctx.strokeStyle = 'rgba(0,0,0,0.45)'
+            ctx.lineWidth = 1.3
+            ctx.fillRect(cx - size / 2, cy - size / 2, size, size)
+            ctx.strokeRect(cx - size / 2, cy - size / 2, size, size)
+            ctx.fillStyle = '#f8fafc'
+            ctx.font = 'bold 13px "SF Mono", monospace'
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText(BUILDING_ABBR[building.kind] || '?', cx, cy)
+          }
           ctx.restore()
 
-          if (!building.complete) {
-            const width = HEX_SIZE * 1.18
-            const ratio =
-              building.build_ticks_total > 0
-                ? building.build_progress / building.build_ticks_total
-                : 0
-            ctx.fillStyle = 'rgba(0,0,0,0.55)'
-            ctx.fillRect(cx - width / 2, cy + HEX_SIZE * 0.7, width, 8)
-            ctx.fillStyle = 'rgba(212, 159, 66, 0.92)'
-            ctx.fillRect(cx - width / 2, cy + HEX_SIZE * 0.7, width * ratio, 8)
-            ctx.strokeStyle = 'rgba(255,255,255,0.2)'
-            ctx.strokeRect(cx - width / 2, cy + HEX_SIZE * 0.7, width, 8)
-          }
+          AODMapUI.drawConstructionOverlay(ctx, cx, cy, building, HEX_SIZE)
+          AODMapUI.drawProductionOverlay(ctx, cx, cy, building)
         }
 
         for (const unit of combinedUnits(snapshot)) {
           const { x, y } = hexToPixel(unit.position.q, unit.position.r)
           const cx = x + PAD
           const cy = y + PAD
-          const radius = HEX_SIZE * 0.42
+          const img = images[`assets/units/team${unit.team}/${unit.kind}.png`]
 
-          ctx.beginPath()
-          ctx.arc(cx, cy, radius, 0, Math.PI * 2)
-          ctx.fillStyle = TEAM_COLOR[unit.team] || '#8ca0b0'
-          ctx.fill()
-          ctx.strokeStyle = 'rgba(0,0,0,0.48)'
-          ctx.lineWidth = 1.5
-          ctx.stroke()
-          ctx.fillStyle = '#fff'
-          ctx.font = 'bold 14px "SF Mono", monospace'
-          ctx.textAlign = 'center'
-          ctx.textBaseline = 'middle'
-          ctx.fillText(UNIT_ABBR[unit.kind] || '?', cx, cy)
+          if (img) {
+            const size = HEX_SIZE * 1.4
+            ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size)
+          } else {
+            const radius = HEX_SIZE * 0.42
+            ctx.beginPath()
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+            ctx.fillStyle = TEAM_COLOR[unit.team] || '#8ca0b0'
+            ctx.fill()
+            ctx.strokeStyle = 'rgba(0,0,0,0.48)'
+            ctx.lineWidth = 1.5
+            ctx.stroke()
+            ctx.fillStyle = '#fff'
+            ctx.font = 'bold 14px "SF Mono", monospace'
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText(UNIT_ABBR[unit.kind] || '?', cx, cy)
+          }
+
+          AODMapUI.drawAttackOverlay(ctx, cx, cy, unit, HEX_SIZE)
+          AODMapUI.drawCarryOverlay(ctx, cx, cy, unit)
         }
       }
 
@@ -1387,12 +1444,22 @@
         renderTickControls()
         if (snapshots.length === 0) return
         const snapshot = snapshots[currentTick]
+        entityMap = AODMapUI.buildEntityMap(snapshot)
         renderSnapshotSummary(snapshot)
         renderDetails(snapshot)
         drawMap(snapshot)
       }
 
       function bindEvents() {
+        AODMapUI.bindCanvasTooltip({
+          canvas: document.getElementById('sandbox-canvas'),
+          tooltip: document.getElementById('tooltip'),
+          getScene: () => ({ mapData, tileMap, entityMap, zoomScale: 1 }),
+          pad: PAD,
+          hexSize: HEX_SIZE,
+          sqrt3: SQRT3,
+        })
+
         document.getElementById('preset-select').addEventListener('change', (event) => {
           loadPreset(event.target.value)
         })
@@ -1450,6 +1517,11 @@
         buildLegend()
         bindEvents()
         try {
+          await AODMapUI.preloadAssets(images, {
+            terrains: ALL_TERRAINS,
+            unitKinds: ALL_UNIT_KINDS,
+            buildingKinds: ALL_BLDG_KINDS,
+          })
           presetList = await fetchPresets()
           const select = document.getElementById('preset-select')
           select.innerHTML = presetList
