@@ -9,7 +9,7 @@ It is the design source of truth for these systems, even where the current codeb
 These rules are written against the current repository state:
 
 - Map size is `20x15`
-- Coordinates use axial hex coordinates `(q, r)`
+- Coordinates use odd-r offset hex coordinates `(q, r)`
 - The game advances in fixed ticks, with `10s` as the default server interval
 - Commands are collected during a tick window and resolved at the next tick boundary
 - Command submission uses last-command-wins semantics per actor for the pending queue
@@ -204,6 +204,7 @@ This means:
 - The villager automatically moves to that target resource tile if needed.
 - Gathered resources are carried by the villager.
 - The villager automatically returns to a friendly `town_center` to deposit carried resources.
+- If multiple deposit-adjacent hexes are available, the villager prefers the one with the lowest remaining round-trip path cost between its current position, the deposit hex, and the bound resource node.
 - After depositing, the villager returns to the same resource target and repeats until interrupted or the node is exhausted.
 - Valid gathering targets are:
   - `forest`

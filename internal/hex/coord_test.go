@@ -12,7 +12,8 @@ func TestDistance(t *testing.T) {
 		{Coord{0, 0}, Coord{3, 0}, 3},
 		{Coord{0, 0}, Coord{0, 3}, 3},
 		{Coord{5, 5}, Coord{5, 5}, 0},
-		{Coord{0, 0}, Coord{2, -2}, 2},
+		{Coord{0, 0}, Coord{2, -2}, 3},
+		{Coord{5, 4}, Coord{8, 8}, 5},
 	}
 	for _, c := range cases {
 		if got := Distance(c.a, c.b); got != c.want {
@@ -22,14 +23,35 @@ func TestDistance(t *testing.T) {
 }
 
 func TestNeighbors(t *testing.T) {
-	c := Coord{5, 5}
-	neighbors := c.Neighbors()
-	if len(neighbors) != 6 {
-		t.Fatalf("expected 6 neighbors, got %d", len(neighbors))
+	cases := []struct {
+		center Coord
+		want   [6]Coord
+	}{
+		{
+			center: Coord{5, 4},
+			want: [6]Coord{
+				{6, 4}, {5, 3}, {4, 3},
+				{4, 4}, {4, 5}, {5, 5},
+			},
+		},
+		{
+			center: Coord{5, 5},
+			want: [6]Coord{
+				{6, 5}, {6, 4}, {5, 4},
+				{4, 5}, {5, 6}, {6, 6},
+			},
+		},
 	}
-	for _, n := range neighbors {
-		if Distance(c, n) != 1 {
-			t.Errorf("neighbor %v is not distance 1 from %v", n, c)
+
+	for _, tc := range cases {
+		neighbors := tc.center.Neighbors()
+		if neighbors != tc.want {
+			t.Fatalf("Neighbors(%v) = %v, want %v", tc.center, neighbors, tc.want)
+		}
+		for _, n := range neighbors {
+			if Distance(tc.center, n) != 1 {
+				t.Errorf("neighbor %v is not distance 1 from %v", n, tc.center)
+			}
 		}
 	}
 }

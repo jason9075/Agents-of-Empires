@@ -7,7 +7,7 @@ No other documentation is needed to make correct API calls.
 
 ## Overview
 
-- The game world is a **20×15 hexagonal grid** using **axial coordinates** `(q, r)`, where `0 ≤ q < 20` and `0 ≤ r < 15`.
+- The game world is a **20×15 hexagonal grid** using **odd-r offset coordinates** `(q, r)`, where `0 ≤ q < 20` and `0 ≤ r < 15`.
 - Game time advances in ticks. The server default is **10 seconds per tick**, but startup flags may override it.
 - **Last-command-wins:** If you submit two commands for the same unit before the tick fires, only the most recent is executed. Previous commands for that unit are silently discarded.
 - Unit commands are persistent. After the next tick boundary applies them, the unit keeps executing that status until it completes, is overwritten, or receives `STOP`.
@@ -18,7 +18,7 @@ No other documentation is needed to make correct API calls.
 
 ## Coordinate System
 
-Each cell is identified by integer axial coordinates `(q, r)`.
+Each cell is identified by integer odd-r offset coordinates `(q, r)`.
 
 ```
 Neighbor directions from any cell (q, r):

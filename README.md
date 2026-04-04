@@ -42,3 +42,7 @@ http://127.0.0.1:8080
 - [Units](./knowledge/UNITS.md)
 - [Mechanisms](./knowledge/MECHANISMS.md)
 - [Economy](./knowledge/ECONOMY.md)
+
+## Learned
+
+- hex map的座標佈局是交錯的，這種叫odd-r，要和coding agent提到這件事情，不然在計算步數時，會有可能把視覺上兩格的距離算成3格(axial distance)，這樣地圖看起來也會變得像是平行四邊形

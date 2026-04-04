@@ -63,6 +63,20 @@ func (w *World) PreviewMoveStep(unitID entity.EntityID, target hex.Coord) (hex.C
 	return w.PreviewMoveStepToAny(unitID, []hex.Coord{target})
 }
 
+// ShortestStaticPathDistance returns the number of steps in the shortest terrain/building-legal path.
+// Unit occupancy is ignored so callers can compare longer-lived routing choices.
+func (w *World) ShortestStaticPathDistance(kind entity.UnitKind, from, target hex.Coord) (int, bool) {
+	return w.ShortestStaticPathDistanceToAny(kind, from, []hex.Coord{target})
+}
+
+// ShortestStaticPathDistanceToAny returns the shortest terrain/building-legal path length to any target.
+// Unit occupancy is ignored so callers can compare longer-lived routing choices.
+func (w *World) ShortestStaticPathDistanceToAny(kind entity.UnitKind, from hex.Coord, targets []hex.Coord) (int, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.shortestPathDistanceLocked(kind, from, targets, 0, true)
+}
+
 // PreviewMoveStepToAny returns the first step on a shortest legal path to any target, if any.
 func (w *World) PreviewMoveStepToAny(unitID entity.EntityID, targets []hex.Coord) (hex.Coord, bool) {
 	w.mu.RLock()
@@ -88,9 +102,83 @@ func (w *World) PreviewMoveStepToAny(unitID entity.EntityID, targets []hex.Coord
 		return hex.Coord{}, false
 	}
 
-	queue := []hex.Coord{cur}
-	visited := map[hex.Coord]bool{cur: true}
-	parent := make(map[hex.Coord]hex.Coord, len(goalSet))
+	queue := make([]hex.Coord, 0, len(goalSet))
+	dist := make(map[hex.Coord]int, len(goalSet))
+	for goal := range goalSet {
+		if goal != cur && !w.canUnitOccupyLocked(u.Kind(), goal, unitID, 0) {
+			continue
+		}
+		queue = append(queue, goal)
+		dist[goal] = 0
+	}
+	if len(queue) == 0 {
+		return hex.Coord{}, false
+	}
+
+	for head := 0; head < len(queue); head++ {
+		pos := queue[head]
+		for _, next := range pos.Neighbors() {
+			if !hex.InBounds(next) {
+				continue
+			}
+			if _, seen := dist[next]; seen {
+				continue
+			}
+			if next != cur && !w.canUnitOccupyLocked(u.Kind(), next, unitID, 0) {
+				continue
+			}
+
+			dist[next] = dist[pos] + 1
+			queue = append(queue, next)
+		}
+	}
+
+	curDist, ok := dist[cur]
+	if !ok || curDist <= 0 {
+		return hex.Coord{}, false
+	}
+
+	best := hex.Coord{}
+	found := false
+	for _, next := range cur.Neighbors() {
+		nextDist, ok := dist[next]
+		if !ok || nextDist != curDist-1 {
+			continue
+		}
+		if !found || stepPreferenceLess(next, best, targets) {
+			best = next
+			found = true
+		}
+	}
+	if found {
+		return best, true
+	}
+
+	return hex.Coord{}, false
+}
+
+func (w *World) shortestPathDistanceLocked(kind entity.UnitKind, from hex.Coord, targets []hex.Coord, ignoreUnitID entity.EntityID, ignoreUnits bool) (int, bool) {
+	if !hex.InBounds(from) {
+		return 0, false
+	}
+
+	goalSet := make(map[hex.Coord]struct{}, len(targets))
+	for _, target := range targets {
+		if !hex.InBounds(target) {
+			continue
+		}
+		goalSet[target] = struct{}{}
+	}
+	if len(goalSet) == 0 {
+		return 0, false
+	}
+	if _, ok := goalSet[from]; ok {
+		return 0, true
+	}
+
+	queue := []hex.Coord{from}
+	visited := map[hex.Coord]bool{from: true}
+	dist := map[hex.Coord]int{from: 0}
 
 	for head := 0; head < len(queue); head++ {
 		pos := queue[head]
@@ -98,24 +186,70 @@ func (w *World) PreviewMoveStepToAny(unitID entity.EntityID, targets []hex.Coord
 			if !hex.InBounds(next) || visited[next] {
 				continue
 			}
-			if !w.canUnitOccupyLocked(u.Kind(), next, unitID, 0) {
+			if ignoreUnits {
+				tile, ok := w.Tiles[next]
+				if !ok || !entity.UnitCanEnterTerrain(kind, tile.Terrain) {
+					continue
+				}
+				if buildingAtLocked(w.Buildings, next) != nil {
+					continue
+				}
+			} else if !w.canUnitOccupyLocked(kind, next, ignoreUnitID, 0) {
 				continue
 			}
 
 			visited[next] = true
-			parent[next] = pos
+			dist[next] = dist[pos] + 1
 			if _, ok := goalSet[next]; ok {
-				step := next
-				for parent[step] != cur {
-					step = parent[step]
-				}
-				return step, true
+				return dist[next], true
 			}
 			queue = append(queue, next)
 		}
 	}
 
-	return hex.Coord{}, false
+	return 0, false
+}
+
+func stepPreferenceLess(a, b hex.Coord, targets []hex.Coord) bool {
+	if scoreA, okA := bestScreenDistanceScore(a, targets); okA {
+		if scoreB, okB := bestScreenDistanceScore(b, targets); !okB || scoreA < scoreB {
+			return true
+		} else if scoreA > scoreB {
+			return false
+		}
+	}
+	if a.R != b.R {
+		return a.R < b.R
+	}
+	return a.Q < b.Q
+}
+
+func bestScreenDistanceScore(from hex.Coord, targets []hex.Coord) (int, bool) {
+	best := 0
+	found := false
+	for _, target := range targets {
+		if !hex.InBounds(target) {
+			continue
+		}
+		score := screenDistanceSquared(from, target)
+		if !found || score < best {
+			best = score
+			found = true
+		}
+	}
+	return best, found
+}
+
+func screenDistanceSquared(a, b hex.Coord) int {
+	ax, ay := screenMetricPoint(a)
+	bx, by := screenMetricPoint(b)
+	dx := ax - bx
+	dy := ay - by
+	return dx*dx + dy*dy
+}
+
+func screenMetricPoint(c hex.Coord) (x, y int) {
+	return 2*c.Q + (c.R & 1), 3 * c.R
 }
 
 // ApplyUnitMoves applies accepted movement results simultaneously.

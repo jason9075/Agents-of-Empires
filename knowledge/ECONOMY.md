@@ -131,6 +131,7 @@ Why reserve population on queue:
 - One gatherer per tile is naturally enforced by single-unit occupancy.
 - Gathered resources are first stored on the villager.
 - A villager deposits carried resources by using `GATHER` while adjacent to a friendly `town_center`.
+- When several drop-off-adjacent hexes are possible, routing prefers the one with the lowest remaining gather-loop path cost, instead of relying on arbitrary tie-breaking.
 - If a node has less than one full gather tick remaining, the villager harvests only the remainder.
 
 Why this design:

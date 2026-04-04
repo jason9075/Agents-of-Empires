@@ -375,6 +375,41 @@ func TestStep_MoveFastRoutesAroundLakeBarrier(t *testing.T) {
 	}
 }
 
+func TestStep_MoveFastFollowsOddROffsetShortestPath(t *testing.T) {
+	w := world.NewWorld(42)
+	q := NewQueue()
+	tk := New(w, q, time.Second)
+
+	unit := w.SpawnUnit(entity.Team1, entity.KindVillager, hex.Coord{Q: 5, R: 4})
+	target := hex.Coord{Q: 8, R: 8}
+
+	w.WriteFunc(func() {
+		for q := 4; q <= 9; q++ {
+			for r := 3; r <= 9; r++ {
+				c := hex.Coord{Q: q, R: r}
+				w.Tiles[c] = terrain.Tile{Coord: c, Terrain: terrain.Plain}
+			}
+		}
+	})
+
+	q.Submit(Command{Team: entity.Team1, UnitID: unit.ID(), Kind: CmdMoveFast, TargetCoord: &target})
+
+	tk.step()
+	if got := w.GetUnit(unit.ID()).Position(); got != (hex.Coord{Q: 6, R: 6}) {
+		t.Fatalf("after tick 1 expected %v, got %v", hex.Coord{Q: 6, R: 6}, got)
+	}
+
+	tk.step()
+	if got := w.GetUnit(unit.ID()).Position(); got != (hex.Coord{Q: 7, R: 8}) {
+		t.Fatalf("after tick 2 expected %v, got %v", hex.Coord{Q: 7, R: 8}, got)
+	}
+
+	tk.step()
+	if got := w.GetUnit(unit.ID()).Position(); got != target {
+		t.Fatalf("after tick 3 expected %v, got %v", target, got)
+	}
+}
+
 func TestStep_GatherAutoShuttlesUntilDeposit(t *testing.T) {
 	w := world.NewWorld(42)
 	q := NewQueue()
@@ -402,6 +437,42 @@ func TestStep_GatherAutoShuttlesUntilDeposit(t *testing.T) {
 	}
 	if villager.Status() != entity.StatusGathering {
 		t.Fatalf("expected gather status to persist while node remains")
+	}
+}
+
+func TestStep_GatherReturnPrefersBestRoundTripTownCenter(t *testing.T) {
+	w := world.NewWorld(42)
+	q := NewQueue()
+	tk := New(w, q, time.Second)
+
+	villager := w.UnitsByTeam(entity.Team1)[0]
+	resourcePos := hex.Coord{Q: 16, R: 7}
+	primaryTC := w.BuildingsByTeam(entity.Team1)[0]
+
+	w.WriteFunc(func() {
+		w.Buildings[primaryTC.ID()] = entity.NewBuilding(primaryTC.ID(), entity.Team1, entity.KindTownCenter, hex.Coord{Q: 4, R: 7})
+		secondaryTC := entity.NewBuilding(entity.EntityID(9999), entity.Team1, entity.KindTownCenter, hex.Coord{Q: 14, R: 7})
+		w.Buildings[secondaryTC.ID()] = secondaryTC
+
+		villager.SetPosition(hex.Coord{Q: 8, R: 7})
+		villager.SetCarry(terrain.ResourceFood, 18)
+		villager.SetGatherStatus(resourcePos)
+
+		w.Tiles[resourcePos] = terrain.Tile{Coord: resourcePos, Terrain: terrain.Orchard}
+		w.ResourceRemaining[resourcePos] = 240
+		for q := 3; q <= 16; q++ {
+			c := hex.Coord{Q: q, R: 7}
+			w.Tiles[c] = terrain.Tile{Coord: c, Terrain: terrain.Plain}
+		}
+	})
+
+	tk.step()
+
+	if got := villager.Position(); got != (hex.Coord{Q: 10, R: 7}) {
+		t.Fatalf("expected villager to head toward the town center with the best remaining gather loop, got %v", got)
+	}
+	if villager.StatusPhase() != entity.PhaseReturning {
+		t.Fatalf("expected villager to stay in returning phase, got %s", villager.StatusPhase())
 	}
 }
 

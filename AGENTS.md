@@ -64,7 +64,7 @@ web/                  simple browser-facing assets
 
 Preserve these core game assumptions unless the user asks to change them:
 
-- 30x30 hexagonal map using axial coordinates `(q, r)`
+- 20x15 hexagonal map using odd-r offset coordinates `(q, r)`
 - 10-second tick loop
 - Headless-first design for AI-agent control
 - Fog of war where terrain is known initially but enemy entities require visibility

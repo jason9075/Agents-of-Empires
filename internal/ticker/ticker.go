@@ -438,7 +438,11 @@ func (t *Ticker) movementDirective(u *entity.Unit) (movementPlan, bool) {
 			if t.world.CanDepositCarry(u.ID()) {
 				return movementPlan{}, false
 			}
-			return newMovementPlan(t.depositTargets(u), u.Stats().SpeedFast, entity.PhaseReturning)
+			depositTarget, ok := t.bestGatherDepositTarget(u, target)
+			if !ok {
+				return movementPlan{}, false
+			}
+			return newMovementPlan([]hex.Coord{depositTarget}, u.Stats().SpeedFast, entity.PhaseReturning)
 		}
 		if !t.world.IsGatherableResource(target) || u.Position() == target {
 			return movementPlan{}, false
@@ -533,6 +537,41 @@ func (t *Ticker) depositTargets(u *entity.Unit) []hex.Coord {
 	return out
 }
 
+func (t *Ticker) bestGatherDepositTarget(u *entity.Unit, resourceTarget hex.Coord) (hex.Coord, bool) {
+	candidates := t.depositTargets(u)
+	best := hex.Coord{}
+	bestTotal := 0
+	bestToDeposit := 0
+	bestToResource := 0
+	found := false
+
+	for _, candidate := range candidates {
+		toDeposit, ok := t.world.ShortestStaticPathDistance(u.Kind(), u.Position(), candidate)
+		if !ok {
+			continue
+		}
+		toResource, ok := t.world.ShortestStaticPathDistance(u.Kind(), candidate, resourceTarget)
+		if !ok {
+			continue
+		}
+
+		total := toDeposit + toResource
+		if !found ||
+			total < bestTotal ||
+			(total == bestTotal && toDeposit < bestToDeposit) ||
+			(total == bestTotal && toDeposit == bestToDeposit && toResource < bestToResource) ||
+			(total == bestTotal && toDeposit == bestToDeposit && toResource == bestToResource && coordLess(candidate, best)) {
+			best = candidate
+			bestTotal = total
+			bestToDeposit = toDeposit
+			bestToResource = toResource
+			found = true
+		}
+	}
+
+	return best, found
+}
+
 func (t *Ticker) buildApproachTargets(u *entity.Unit, target hex.Coord) []hex.Coord {
 	var out []hex.Coord
 	for _, candidate := range hex.Ring(target, 1) {
@@ -541,6 +580,13 @@ func (t *Ticker) buildApproachTargets(u *entity.Unit, target hex.Coord) []hex.Co
 		}
 	}
 	return out
+}
+
+func coordLess(a, b hex.Coord) bool {
+	if a.Q != b.Q {
+		return a.Q < b.Q
+	}
+	return a.R < b.R
 }
 
 func (t *Ticker) validateMoveAtResolution(cmd Command, tick uint64) (world.CommandFailure, bool) {
