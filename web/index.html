@@ -554,6 +554,7 @@
 
     <div id="tooltip"></div>
 
+    <script src="/shared-map.js"></script>
     <script>
       // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -561,6 +562,7 @@
       const SQRT3 = Math.sqrt(3)
       const PAD = HEX_SIZE // canvas padding
       const TEAM_COLOR = { 1: '#4a90e2', 2: '#e25050' }
+      const HORIZONTALLY_FLIPPED_TEAM = 1
       const TERRAIN_COLOR = {
         plain: '#5a6e3a',
         forest: '#2d5a27',
@@ -610,6 +612,7 @@
         'stable',
         'archery_range',
       ]
+      const formatKindLabel = AODMapUI.formatKindLabel
 
       // ── Hex math — odd-r offset, pointy-top ────────────────────────────────────
       // Rows go left-to-right; odd rows are shifted right by half a hex.
@@ -632,13 +635,6 @@
           i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)
         }
         ctx.closePath()
-      }
-
-      // Approximate pixel → axial hex (good enough for hover detection).
-      function pixelToHex(px, py) {
-        const r = Math.round(py / (HEX_SIZE * 1.5))
-        const q = Math.round(px / (HEX_SIZE * SQRT3) - 0.5 * (r & 1))
-        return { q, r }
       }
 
       // ── Zoom ───────────────────────────────────────────────────────────────────
@@ -673,31 +669,6 @@
 
       const images = {} // path → HTMLImageElement (only populated on success)
 
-      function loadImage(src) {
-        return new Promise((resolve) => {
-          const img = new Image()
-          img.onload = () => {
-            images[src] = img
-            resolve()
-          }
-          img.onerror = () => resolve() // missing → silent fallback
-          img.src = src
-        })
-      }
-
-      async function preloadAssets() {
-        const tasks = []
-        for (const t of ALL_TERRAINS)
-          tasks.push(loadImage(`assets/terrain/${t}.png`))
-        for (const team of [1, 2]) {
-          for (const k of ALL_UNIT_KINDS)
-            tasks.push(loadImage(`assets/units/team${team}/${k}.png`))
-          for (const k of ALL_BLDG_KINDS)
-            tasks.push(loadImage(`assets/buildings/team${team}/${k}.png`))
-        }
-        await Promise.all(tasks)
-      }
-
       // ── State ──────────────────────────────────────────────────────────────────
 
       let mapData = null
@@ -715,30 +686,18 @@
       async function fetchMap() {
         const res = await fetch('/map')
         mapData = await res.json()
-        tileMap = {}
-        for (const tile of mapData.tiles)
-          tileMap[`${tile.coord.q},${tile.coord.r}`] = tile
+        tileMap = AODMapUI.buildTileMap(mapData)
       }
 
       async function fetchState() {
         const [mapRes, stateRes] = await Promise.all([fetch('/map'), fetch('/state/full')])
         mapData = await mapRes.json()
-        tileMap = {}
-        for (const tile of mapData.tiles)
-          tileMap[`${tile.coord.q},${tile.coord.r}`] = tile
+        tileMap = AODMapUI.buildTileMap(mapData)
 
         const prevUnitsByID = buildUnitMap(gameState)
         gameState = await stateRes.json()
         syncUnitAnimations(prevUnitsByID, gameState)
-        entityMap = {}
-        const add = (type, data) => {
-          const k = `${data.position.q},${data.position.r}`
-          ;(entityMap[k] = entityMap[k] || []).push({ type, data })
-        }
-        for (const u of gameState.team1.units || []) add('unit', u)
-        for (const u of gameState.team2.units || []) add('unit', u)
-        for (const b of gameState.team1.buildings || []) add('building', b)
-        for (const b of gameState.team2.buildings || []) add('building', b)
+        entityMap = AODMapUI.buildEntityMap(gameState)
       }
 
       function buildUnitMap(state) {
@@ -786,105 +745,16 @@
         }
       }
 
-      function formatKindLabel(kind) {
-        return kind.replace(/_/g, ' ')
-      }
-
-      function drawResourceRemaining(ctx, cx, cy, tile) {
-        if (!tile.remaining || tile.remaining <= 0) return
-        ctx.save()
-        ctx.fillStyle = 'rgba(12, 14, 18, 0.78)'
-        ctx.fillRect(cx - 16, cy + 10, 32, 15)
-        ctx.strokeStyle = 'rgba(255,255,255,0.18)'
-        ctx.lineWidth = 0.8
-        ctx.strokeRect(cx - 16, cy + 10, 32, 15)
-        ctx.fillStyle = '#f4f7f8'
-        ctx.font = 'bold 10px system-ui'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(String(tile.remaining), cx, cy + 17.5)
-        ctx.restore()
-      }
-
-      function drawConstructionOverlay(ctx, cx, cy, building) {
-        if (building.complete) return
-        const ratio =
-          building.build_ticks_total > 0
-            ? building.build_progress / building.build_ticks_total
-            : 0
-        const width = HEX_SIZE * 1.1
-        const x = cx - width / 2
-        const y = cy + HEX_SIZE * 0.62
+      function drawTeamSprite(ctx, img, team, cx, cy, size) {
+        if (team !== HORIZONTALLY_FLIPPED_TEAM) {
+          ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size)
+          return
+        }
 
         ctx.save()
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.58)'
-        ctx.fillRect(x, y, width, 8)
-        ctx.fillStyle = 'rgba(255, 208, 92, 0.92)'
-        ctx.fillRect(x, y, width * ratio, 8)
-        ctx.strokeStyle = 'rgba(255,255,255,0.18)'
-        ctx.lineWidth = 1
-        ctx.strokeRect(x, y, width, 8)
-        ctx.fillStyle = '#fff3cf'
-        ctx.font = 'bold 10px system-ui'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'bottom'
-        ctx.fillText(`${building.build_progress}/${building.build_ticks_total}`, cx, y - 2)
-        ctx.restore()
-      }
-
-      function drawProductionOverlay(ctx, cx, cy, building) {
-        if (building.production_queue_len <= 0) return
-        ctx.save()
-        ctx.fillStyle = 'rgba(12, 14, 18, 0.82)'
-        ctx.fillRect(cx + 10, cy - 28, 30, 16)
-        ctx.strokeStyle = 'rgba(255,255,255,0.18)'
-        ctx.lineWidth = 0.8
-        ctx.strokeRect(cx + 10, cy - 28, 30, 16)
-        ctx.fillStyle = '#cde3ff'
-        ctx.font = 'bold 10px system-ui'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(
-          `${building.production_queue_len}:${building.production_ticks_remaining}`,
-          cx + 25,
-          cy - 20,
-        )
-        ctx.restore()
-      }
-
-      function drawCarryOverlay(ctx, cx, cy, unit) {
-        if (!unit.carry_amount || unit.carry_amount <= 0) return
-        ctx.save()
-        ctx.fillStyle = 'rgba(12, 14, 18, 0.82)'
-        ctx.fillRect(cx + 10, cy + 8, 28, 14)
-        ctx.strokeStyle = 'rgba(255,255,255,0.18)'
-        ctx.lineWidth = 0.8
-        ctx.strokeRect(cx + 10, cy + 8, 28, 14)
-        ctx.fillStyle = '#e5f1d0'
-        ctx.font = 'bold 10px system-ui'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(`${unit.carry_amount}`, cx + 24, cy + 15)
-        ctx.restore()
-      }
-
-      function drawAttackOverlay(ctx, cx, cy, unit) {
-        if (!unit.attack_target_id) return
-        const pulse = 0.78 + 0.22 * Math.sin(performance.now() / 180)
-        ctx.save()
-        ctx.strokeStyle =
-          unit.team === 1
-            ? `rgba(110, 195, 255, ${pulse})`
-            : `rgba(255, 122, 122, ${pulse})`
-        ctx.lineWidth = 2.4
-        ctx.beginPath()
-        ctx.arc(cx, cy, HEX_SIZE * 0.63, 0, Math.PI * 2)
-        ctx.stroke()
-        ctx.fillStyle = 'rgba(255, 244, 194, 0.92)'
-        ctx.font = 'bold 12px system-ui'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText('!', cx, cy - HEX_SIZE * 0.74)
+        ctx.translate(cx, cy)
+        ctx.scale(-1, 1)
+        ctx.drawImage(img, -size / 2, -size / 2, size, size)
         ctx.restore()
       }
 
@@ -996,7 +866,7 @@
           ctx.lineWidth = 0.5
           ctx.stroke()
 
-          drawResourceRemaining(ctx, cx, cy, tile)
+          AODMapUI.drawResourceRemaining(ctx, cx, cy, tile)
         }
 
         if (!gameState) {
@@ -1020,7 +890,7 @@
           }
           if (img) {
             const s = HEX_SIZE * 1.5
-            ctx.drawImage(img, cx - s / 2, cy - s / 2, s, s)
+            drawTeamSprite(ctx, img, b.team, cx, cy, s)
           } else {
             // Fallback: coloured square + abbreviation.
             const s = HEX_SIZE * 0.9
@@ -1037,8 +907,8 @@
           }
           ctx.restore()
 
-          drawConstructionOverlay(ctx, cx, cy, b)
-          drawProductionOverlay(ctx, cx, cy, b)
+          AODMapUI.drawConstructionOverlay(ctx, cx, cy, b, HEX_SIZE)
+          AODMapUI.drawProductionOverlay(ctx, cx, cy, b)
         }
 
         // ── 3. Units ──
@@ -1053,7 +923,7 @@
 
           if (img) {
             const s = HEX_SIZE * 1.4
-            ctx.drawImage(img, cx - s / 2, cy - s / 2, s, s)
+            drawTeamSprite(ctx, img, u.team, cx, cy, s)
           } else {
             // Fallback: coloured circle + abbreviation.
             const radius = HEX_SIZE * 0.55
@@ -1071,8 +941,8 @@
             ctx.fillText(UNIT_ABBR[u.kind] || u.kind[0].toUpperCase(), cx, cy)
           }
 
-          drawAttackOverlay(ctx, cx, cy, u)
-          drawCarryOverlay(ctx, cx, cy, u)
+          AODMapUI.drawAttackOverlay(ctx, cx, cy, u, HEX_SIZE)
+          AODMapUI.drawCarryOverlay(ctx, cx, cy, u)
         }
 
         ctx.restore() // undo ctx.scale(zoomScale)
@@ -1217,60 +1087,14 @@
 
       // ── Tooltip on hover ────────────────────────────────────────────────────────
 
-      canvas.addEventListener('mousemove', (e) => {
-        if (isDragging) return
-
-        const rect = canvas.getBoundingClientRect()
-        // Convert screen px → logical canvas coords (undo zoom, undo PAD offset).
-        const px = (e.clientX - rect.left) / zoomScale - PAD
-        const py = (e.clientY - rect.top) / zoomScale - PAD
-        const { q, r } = pixelToHex(px, py)
-        const tile = tileMap[`${q},${r}`]
-        const entities = entityMap[`${q},${r}`]
-
-        if (
-          !tile ||
-          q < 0 ||
-          q >= (mapData?.width || 20) ||
-          r < 0 ||
-          r >= (mapData?.height || 15)
-        ) {
-          tooltip.style.display = 'none'
-          return
-        }
-
-        let html = `<b>(${q}, ${r})</b> ${formatKindLabel(tile.terrain)}`
-        if (tile.remaining > 0) {
-          html += `<br>Remaining ${tile.remaining}`
-        }
-        if (entities) {
-          for (const { type, data } of entities) {
-            if (type === 'unit') {
-              html += `<br>#${data.id} · Team ${data.team} · ${formatKindLabel(data.kind)} HP ${data.hp}/${data.max_hp}`
-              if (data.carry_amount > 0) {
-                html += `<br>&nbsp;&nbsp;Carry ${data.carry_amount} ${data.carry_resource}`
-              }
-              if (data.attack_target_id) {
-                html += `<br>&nbsp;&nbsp;Attacking #${data.attack_target_id}`
-              }
-              continue
-            }
-            html += `<br>#${data.id} · Team ${data.team} · ${formatKindLabel(data.kind)} HP ${data.hp}/${data.max_hp}`
-            html += `<br>&nbsp;&nbsp;${data.complete ? 'Complete' : `Building ${data.build_progress}/${data.build_ticks_total}`}`
-            if (data.production_queue_len > 0) {
-              html += `<br>&nbsp;&nbsp;Queue ${data.production_queue_len}, next ${data.production_ticks_remaining}t`
-            }
-          }
-        }
-
-        tooltip.innerHTML = html
-        tooltip.style.display = 'block'
-        tooltip.style.left = e.clientX + 14 + 'px'
-        tooltip.style.top = e.clientY + 14 + 'px'
-      })
-
-      canvas.addEventListener('mouseleave', () => {
-        tooltip.style.display = 'none'
+      AODMapUI.bindCanvasTooltip({
+        canvas,
+        tooltip,
+        getScene: () => ({ mapData, tileMap, entityMap, zoomScale }),
+        isBlocked: () => isDragging,
+        pad: PAD,
+        hexSize: HEX_SIZE,
+        sqrt3: SQRT3,
       })
 
       // ── Live dot ───────────────────────────────────────────────────────────────
@@ -1311,7 +1135,11 @@
 
       // Preload assets and kick off the first fetch in parallel.
       // Re-draw after assets finish in case the first draw used fallbacks.
-      preloadAssets().then(() => {
+      AODMapUI.preloadAssets(images, {
+        terrains: ALL_TERRAINS,
+        unitKinds: ALL_UNIT_KINDS,
+        buildingKinds: ALL_BLDG_KINDS,
+      }).then(() => {
         if (mapData) drawMap()
       })
       fetchAndDraw()
