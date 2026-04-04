@@ -36,6 +36,7 @@ type sandboxTimelineRow struct {
 	Tick         int                `json:"tick"`
 	ActorID      string             `json:"actor_id"`
 	Kind         ticker.CommandKind `json:"kind"`
+	TargetActorID string            `json:"target_actor_id,omitempty"`
 	TargetCoord  *coordView         `json:"target_coord,omitempty"`
 	BuildingKind *string            `json:"building_kind,omitempty"`
 	UnitKind     *string            `json:"unit_kind,omitempty"`
@@ -117,6 +118,7 @@ type sandboxActorRef struct {
 }
 
 var sandboxPresetRegistry = map[string]sandboxPresetDefinition{
+	"infantry_duel":            newInfantryDuelPreset(),
 	"gather_four_corners":      newGatherFourCornersPreset(),
 	"villager_move_then_build": newVillagerMoveThenBuildPreset(),
 }
@@ -250,6 +252,82 @@ func newVillagerMoveThenBuildPreset() sandboxPresetDefinition {
 				Kind:         ticker.CmdBuild,
 				TargetCoord:  &buildTarget,
 				BuildingKind: &buildingKind,
+			},
+		},
+	}
+}
+
+func newInfantryDuelPreset() sandboxPresetDefinition {
+	move1Target := coordView{Q: 2, R: 2}
+	move2Target := coordView{Q: 3, R: 2}
+
+	return sandboxPresetDefinition{
+		ID:               "infantry_duel",
+		Name:             "Infantry duel",
+		Description:      "Two infantry units start at (1,2) and (5,2), move into adjacent positions on tick 1, then receive ATTACK commands on tick 2 and keep fighting until both sides are eliminated.",
+		Width:            7,
+		Height:           5,
+		DefaultPlaybackM: 500,
+		MaxTick:          12,
+		Tiles: func() map[hex.Coord]terrain.Type {
+			tiles := make(map[hex.Coord]terrain.Type)
+			for q := 0; q < 7; q++ {
+				for r := 0; r < 5; r++ {
+					tiles[hex.Coord{Q: q, R: r}] = terrain.Plain
+				}
+			}
+			return tiles
+		}(),
+		TeamResources: map[entity.Team]world.Resources{
+			entity.Team1: {Food: 0, Wood: 0, Gold: 0, Stone: 0},
+			entity.Team2: {Food: 0, Wood: 0, Gold: 0, Stone: 0},
+		},
+		Units: []sandboxUnitSeed{
+			{
+				ActorID:  "infantry_1",
+				Label:    "infantry_1",
+				EntityID: 1201,
+				Team:     entity.Team1,
+				Kind:     entity.KindInfantry,
+				Position: hex.Coord{Q: 1, R: 2},
+			},
+			{
+				ActorID:  "infantry_2",
+				Label:    "infantry_2",
+				EntityID: 2201,
+				Team:     entity.Team2,
+				Kind:     entity.KindInfantry,
+				Position: hex.Coord{Q: 5, R: 2},
+			},
+		},
+		DefaultTimeline: []sandboxTimelineRow{
+			{
+				RowID:       "move_1",
+				Tick:        1,
+				ActorID:     "infantry_1",
+				Kind:        ticker.CmdMoveFast,
+				TargetCoord: &move1Target,
+			},
+			{
+				RowID:       "move_2",
+				Tick:        1,
+				ActorID:     "infantry_2",
+				Kind:        ticker.CmdMoveFast,
+				TargetCoord: &move2Target,
+			},
+			{
+				RowID:         "attack_1",
+				Tick:          2,
+				ActorID:       "infantry_1",
+				Kind:          ticker.CmdAttack,
+				TargetActorID: "infantry_2",
+			},
+			{
+				RowID:         "attack_2",
+				Tick:          2,
+				ActorID:       "infantry_2",
+				Kind:          ticker.CmdAttack,
+				TargetActorID: "infantry_1",
 			},
 		},
 	}
@@ -395,6 +473,7 @@ func cloneSandboxTimeline(rows []sandboxTimelineRow) []sandboxTimelineRow {
 	out := make([]sandboxTimelineRow, 0, len(rows))
 	for _, row := range rows {
 		copyRow := row
+		copyRow.TargetActorID = row.TargetActorID
 		if row.TargetCoord != nil {
 			target := *row.TargetCoord
 			copyRow.TargetCoord = &target
@@ -616,6 +695,18 @@ func sandboxRowToCommand(preset sandboxPresetDefinition, maxTick int, refs map[s
 		kind := strings.TrimSpace(*row.UnitKind)
 		cmd.UnitKind = &kind
 	}
+	if row.TargetActorID != "" {
+		targetRef, ok := refs[row.TargetActorID]
+		if !ok {
+			return ticker.Command{}, &sandboxValidationIssue{
+				RowID:  row.RowID,
+				Code:   "unknown_target_actor",
+				Reason: "target_actor_id does not exist in the selected preset",
+			}, ""
+		}
+		targetID := targetRef.ID
+		cmd.TargetID = &targetID
+	}
 
 	if ref.IsUnit {
 		unit := h.w.GetUnit(cmd.UnitID)
@@ -669,6 +760,11 @@ func sandboxIssuedCommandNote(row sandboxTimelineRow) string {
 			return fmt.Sprintf("%s issues BUILD.", row.ActorID)
 		}
 		return fmt.Sprintf("%s issues BUILD %s at (%d, %d).", row.ActorID, *row.BuildingKind, row.TargetCoord.Q, row.TargetCoord.R)
+	case ticker.CmdAttack:
+		if row.TargetActorID == "" {
+			return fmt.Sprintf("%s issues ATTACK.", row.ActorID)
+		}
+		return fmt.Sprintf("%s issues ATTACK on %s.", row.ActorID, row.TargetActorID)
 	case ticker.CmdMoveFast, ticker.CmdMoveGuard:
 		if row.TargetCoord == nil {
 			return fmt.Sprintf("%s issues %s.", row.ActorID, row.Kind)

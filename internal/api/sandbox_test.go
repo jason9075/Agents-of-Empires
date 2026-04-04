@@ -44,6 +44,14 @@ func TestSandboxPresetsHandler_ReturnsPresetSummary(t *testing.T) {
 	if len(preset.DefaultTimeline) != 4 {
 		t.Fatalf("default timeline len = %d, want 4", len(preset.DefaultTimeline))
 	}
+
+	duelPreset := findPresetSummary(resp.Presets, "infantry_duel")
+	if duelPreset == nil {
+		t.Fatalf("expected infantry_duel preset, got %+v", resp.Presets)
+	}
+	if len(duelPreset.Actors) != 2 {
+		t.Fatalf("unexpected duel actors: %+v", duelPreset.Actors)
+	}
 }
 
 func TestSandboxSimulateHandler_DefaultPresetReplaysLiveServerLogic(t *testing.T) {
@@ -298,6 +306,30 @@ func TestSandboxSimulateHandler_GatherFourCornersReducesResourceRemaining(t *tes
 	}
 	if !reduced {
 		t.Fatalf("expected deer tile remaining to decrease across snapshots")
+	}
+}
+
+func TestSandboxSimulateHandler_InfantryDuelResolvesToMutualKill(t *testing.T) {
+	h := &sandboxSimulateHandler{}
+	reqBody := sandboxSimulationRequest{PresetID: "infantry_duel"}
+
+	rec := doSandboxRequest(t, http.MethodPost, "/sandbox/simulate", reqBody, h)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var resp sandboxSimulationResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal sandbox simulate response: %v", err)
+	}
+
+	if len(resp.ValidationIssues) != 0 {
+		t.Fatalf("expected no validation issues, got %+v", resp.ValidationIssues)
+	}
+
+	last := resp.Snapshots[len(resp.Snapshots)-1]
+	if len(last.Team1.Units) != 0 || len(last.Team2.Units) != 0 {
+		t.Fatalf("expected both infantry to be dead by final tick, team1=%+v team2=%+v", last.Team1.Units, last.Team2.Units)
 	}
 }
 

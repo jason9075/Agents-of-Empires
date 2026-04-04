@@ -718,8 +718,8 @@
       const PAD = HEX_SIZE
       const PRESET_ENDPOINT = '/sandbox/presets'
       const SIMULATE_ENDPOINT = '/sandbox/simulate'
-      const DEFAULT_PRESET_ID = 'gather_four_corners'
-      const SUPPORTED_COMMANDS = ['MOVE_FAST', 'MOVE_GUARD', 'GATHER', 'BUILD']
+      const DEFAULT_PRESET_ID = 'infantry_duel'
+      const SUPPORTED_COMMANDS = ['MOVE_FAST', 'MOVE_GUARD', 'GATHER', 'BUILD', 'ATTACK']
       const SUPPORTED_BUILDINGS = ['barracks', 'stable', 'archery_range']
       const AUTO_EXTEND_TICKS = 12
       const AUTO_EXTEND_BUFFER = 3
@@ -845,6 +845,8 @@
           tick: partial.tick ?? 1,
           actorId: partial.actorId || partial.actor_id || actorChoices()[0]?.id || '',
           kind: partial.kind || 'MOVE_GUARD',
+          targetActorId:
+            partial.targetActorId || partial.target_actor_id || '',
           targetCoord: partial.targetCoord
             ? { ...partial.targetCoord }
             : partial.target_coord
@@ -868,7 +870,11 @@
             actor_id: row.actorId,
             kind: row.kind,
           }
-          if (row.targetCoord) {
+          if (row.kind === 'ATTACK') {
+            if (row.targetActorId) {
+              payload.target_actor_id = row.targetActorId
+            }
+          } else if (row.targetCoord) {
             payload.target_coord = {
               q: Number(row.targetCoord.q),
               r: Number(row.targetCoord.r),
@@ -969,6 +975,24 @@
           simulationMaxTick || 1,
           highestScheduledTick(editorRows) + AUTO_EXTEND_TICKS,
         )
+      }
+
+      function actorById(actorId) {
+        return actorChoices().find((actor) => actor.id === actorId) || null
+      }
+
+      function attackTargetChoices(actorId) {
+        const actor = actorById(actorId)
+        if (!actor) {
+          return actorChoices()
+        }
+        const enemies = actorChoices().filter(
+          (candidate) => candidate.id !== actorId && candidate.team !== actor.team,
+        )
+        if (enemies.length > 0) {
+          return enemies
+        }
+        return actorChoices().filter((candidate) => candidate.id !== actorId)
       }
 
       function desiredSimulationMaxTick(rows = editorRows, minTick = 0) {
@@ -1160,11 +1184,13 @@
 
       function addRow() {
         stopPlayback()
+        const actorId = actorChoices()[0]?.id || ''
         editorRows.push(
           newClientRow({
             tick: Math.max(1, currentTick + 1),
-            actorId: actorChoices()[0]?.id || '',
+            actorId,
             kind: 'MOVE_GUARD',
+            targetActorId: attackTargetChoices(actorId)[0]?.id || '',
             targetCoord: { q: 0, r: 0 },
           }),
         )
@@ -1179,6 +1205,7 @@
         if (field === 'tick') row.tick = value
         if (field === 'actorId') row.actorId = value
         if (field === 'kind') row.kind = value
+        if (field === 'targetActorId') row.targetActorId = value
         if (field === 'target-q') row.targetCoord.q = value
         if (field === 'target-r') row.targetCoord.r = value
         if (field === 'buildingKind') row.buildingKind = value
@@ -1237,6 +1264,12 @@
           const error = validationByRow[row.rowId]
           const actors = actorChoices()
           const showBuild = row.kind === 'BUILD'
+          const showAttack = row.kind === 'ATTACK'
+          const showTargetCoord = !showAttack
+          const attackTargets = attackTargetChoices(row.actorId)
+          if (showAttack && !row.targetActorId && attackTargets[0]) {
+            row.targetActorId = attackTargets[0].id
+          }
           const card = document.createElement('div')
           card.className = `row-card${error ? ' invalid' : ''}${draggingRowId === row.rowId ? ' dragging' : ''}${dragDropRowId === row.rowId && draggingRowId !== row.rowId && dragDropPosition === 'before' ? ' drop-before' : ''}${dragDropRowId === row.rowId && draggingRowId !== row.rowId && dragDropPosition === 'after' ? ' drop-after' : ''}`
           card.setAttribute('data-row-card', row.rowId)
@@ -1274,11 +1307,22 @@
                 </select>
               </div>
               <div class="field full">
-                <label>Target</label>
+                <label>${showAttack ? 'Target actor' : 'Target'}</label>
+                ${showTargetCoord ? `
                 <div class="coord-row">
                   <input data-field="target-q" data-row="${escapeHtml(row.rowId)}" type="number" value="${escapeHtml(String(row.targetCoord.q))}" />
                   <input data-field="target-r" data-row="${escapeHtml(row.rowId)}" type="number" value="${escapeHtml(String(row.targetCoord.r))}" />
                 </div>
+                ` : `
+                <select data-field="targetActorId" data-row="${escapeHtml(row.rowId)}">
+                  ${attackTargets
+                    .map(
+                      (actor) =>
+                        `<option value="${escapeHtml(actor.id)}"${actor.id === row.targetActorId ? ' selected' : ''}>${escapeHtml(actor.label)}</option>`,
+                    )
+                    .join('')}
+                </select>
+                `}
               </div>
               <div class="field full"${showBuild ? '' : ' hidden'}>
                 <label>Building kind</label>
