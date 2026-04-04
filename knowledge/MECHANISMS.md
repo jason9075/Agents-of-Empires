@@ -110,6 +110,8 @@ When two opposing units attempt to enter the same hex during the same movement p
 
 - neither unit enters that hex
 - both units remain in their previous legal positions for that step
+- the contested destination hex is still treated as an active clash site for this tick
+- the involved units deal simultaneous combat damage to opposing contestants even though movement into the hex failed
 - no hidden priority is granted by speed, command submission time, or team
 
 This rule exists to keep simultaneous movement deterministic and fair.
@@ -119,12 +121,14 @@ This rule exists to keep simultaneous movement deterministic and fair.
 `MOVE_FAST`
 
 - prioritizes travel only
+- if the target hex is temporarily occupied by another unit, the mover still advances toward surrounding approach hexes until the target opens up
 - never auto-engages enemies
 - if the move finishes with an enemy in range, the unit still does not attack unless it has a valid persistent `ATTACK`
 
 `MOVE_GUARD`
 
 - uses guarded movement speed
+- if the target hex is temporarily occupied by another unit, the mover still advances toward the surrounding approach hexes instead of treating the command as invalid
 - after movement is resolved, if an enemy is within attack range, the unit enters combat targeting instead of continuing to prioritize its move target
 - this allows guarded movement to naturally convert into frontline contact
 

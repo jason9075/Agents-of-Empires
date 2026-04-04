@@ -40,6 +40,12 @@ type CommandFailure struct {
 	Reason        string           `json:"reason"`
 }
 
+type ContestedHex struct {
+	Coord        hex.Coord         `json:"coord"`
+	Team1UnitIDs []entity.EntityID `json:"team1_unit_ids,omitempty"`
+	Team2UnitIDs []entity.EntityID `json:"team2_unit_ids,omitempty"`
+}
+
 // StartingResources is given to each team at T=0.
 var StartingResources = Resources{
 	Food:  200,
@@ -57,6 +63,7 @@ type World struct {
 	Buildings         map[entity.EntityID]*entity.Building
 	TeamRes           map[entity.Team]Resources
 	LastTickFailures  map[entity.Team][]CommandFailure
+	LastTickContests  []ContestedHex
 	Tick              uint64
 	idCounter         atomic.Uint64
 }
@@ -76,6 +83,7 @@ func NewWorld(seed int64) *World {
 			entity.Team1: nil,
 			entity.Team2: nil,
 		},
+		LastTickContests: nil,
 	}
 	generate(w, seed)
 	return w
@@ -238,6 +246,42 @@ func (w *World) SetLastTickCommandFailures(team entity.Team, failures []CommandF
 	w.LastTickFailures[team] = out
 }
 
+func (w *World) GetLastTickContestedHexes() []ContestedHex {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	out := make([]ContestedHex, 0, len(w.LastTickContests))
+	for _, contest := range w.LastTickContests {
+		out = append(out, cloneContestedHex(contest))
+	}
+	return out
+}
+
+func (w *World) GetVisibleLastTickContestedHexes(team entity.Team) []ContestedHex {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	visible := w.losCircle(team)
+	out := make([]ContestedHex, 0, len(w.LastTickContests))
+	for _, contest := range w.LastTickContests {
+		if visible[contest.Coord] {
+			out = append(out, cloneContestedHex(contest))
+		}
+	}
+	return out
+}
+
+func (w *World) SetLastTickContestedHexes(contests []ContestedHex) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	out := make([]ContestedHex, 0, len(contests))
+	for _, contest := range contests {
+		out = append(out, cloneContestedHex(contest))
+	}
+	w.LastTickContests = out
+}
+
 // GetPopulationSummary returns current living and reserved population for a team.
 func (w *World) GetPopulationSummary(team entity.Team) PopulationSummary {
 	w.mu.RLock()
@@ -336,6 +380,17 @@ func cloneCommandFailure(in CommandFailure) CommandFailure {
 	if in.UnitKind != nil {
 		kind := *in.UnitKind
 		out.UnitKind = &kind
+	}
+	return out
+}
+
+func cloneContestedHex(in ContestedHex) ContestedHex {
+	out := ContestedHex{Coord: in.Coord}
+	if len(in.Team1UnitIDs) > 0 {
+		out.Team1UnitIDs = append([]entity.EntityID(nil), in.Team1UnitIDs...)
+	}
+	if len(in.Team2UnitIDs) > 0 {
+		out.Team2UnitIDs = append([]entity.EntityID(nil), in.Team2UnitIDs...)
 	}
 	return out
 }

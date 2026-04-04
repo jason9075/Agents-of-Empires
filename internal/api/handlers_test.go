@@ -151,8 +151,12 @@ func TestCommandHandler_AccountsForPendingResourceReservations(t *testing.T) {
 	q := ticker.NewQueue()
 	h := &commandHandler{w: w, q: q}
 
-	builder1 := w.UnitsByTeam(entity.Team1)[0]
-	builder2 := w.UnitsByTeam(entity.Team1)[1]
+	builders := w.UnitsByTeam(entity.Team1)
+	builder1 := builders[0]
+	builder2 := builders[1]
+	if builder1.ID() == builder2.ID() {
+		t.Fatalf("expected distinct builders, got duplicate id %d", builder1.ID())
+	}
 	target1 := hex.Coord{Q: 6, R: 5}
 	target2 := hex.Coord{Q: 6, R: 6}
 
@@ -174,6 +178,10 @@ func TestCommandHandler_AccountsForPendingResourceReservations(t *testing.T) {
 	}
 	if rec := doCommandRequest(t, h, first, "1"); rec.Code != http.StatusAccepted {
 		t.Fatalf("first build status = %d, want %d, body=%s", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+	snap := q.Snapshot()
+	if len(snap) != 1 || snap[0].UnitID != builder1.ID() {
+		t.Fatalf("after first build expected one pending command for builder1=%d, got %+v", builder1.ID(), snap)
 	}
 
 	second := map[string]any{
@@ -512,6 +520,49 @@ func TestFullStateHandler_ExposesLastTickFailedCommandsPerTeam(t *testing.T) {
 	}
 	if len(resp.Team2.LastTickFailedCommands) != 1 || resp.Team2.LastTickFailedCommands[0].CommandID != 22 || resp.Team2.LastTickFailedCommands[0].Code != "target_not_found" {
 		t.Fatalf("unexpected team2 failures: %+v", resp.Team2.LastTickFailedCommands)
+	}
+}
+
+func TestFullStateHandler_ExposesLastTickContestedHexes(t *testing.T) {
+	w := world.NewWorld(42)
+	h := &fullStateHandler{w: w}
+
+	w.SetLastTickContestedHexes([]world.ContestedHex{{
+		Coord:        hex.Coord{Q: 8, R: 7},
+		Team1UnitIDs: []entity.EntityID{101, 102},
+		Team2UnitIDs: []entity.EntityID{201},
+	}})
+
+	req := httptest.NewRequest(http.MethodGet, "/state/full", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var resp struct {
+		LastTickContestedHexes []struct {
+			Coord struct {
+				Q int `json:"q"`
+				R int `json:"r"`
+			} `json:"coord"`
+			Team1UnitIDs []entity.EntityID `json:"team1_unit_ids"`
+			Team2UnitIDs []entity.EntityID `json:"team2_unit_ids"`
+		} `json:"last_tick_contested_hexes"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal full state response: %v", err)
+	}
+	if len(resp.LastTickContestedHexes) != 1 {
+		t.Fatalf("expected one contested hex, got %+v", resp.LastTickContestedHexes)
+	}
+	got := resp.LastTickContestedHexes[0]
+	if got.Coord.Q != 8 || got.Coord.R != 7 {
+		t.Fatalf("unexpected contested coord: %+v", got.Coord)
+	}
+	if len(got.Team1UnitIDs) != 2 || len(got.Team2UnitIDs) != 1 {
+		t.Fatalf("unexpected contested participants: %+v", got)
 	}
 }
 

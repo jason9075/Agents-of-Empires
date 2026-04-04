@@ -91,6 +91,12 @@ type failedCommandView struct {
 	Reason        string           `json:"reason"`
 }
 
+type contestedHexView struct {
+	Coord        coordView         `json:"coord"`
+	Team1UnitIDs []entity.EntityID `json:"team1_unit_ids,omitempty"`
+	Team2UnitIDs []entity.EntityID `json:"team2_unit_ids,omitempty"`
+}
+
 type populationView struct {
 	Used     int `json:"used"`
 	Reserved int `json:"reserved"`
@@ -102,6 +108,7 @@ type stateResponse struct {
 	Resources              world.Resources     `json:"resources"`
 	Population             populationView      `json:"population"`
 	LastTickFailedCommands []failedCommandView `json:"last_tick_failed_commands"`
+	LastTickContestedHexes []contestedHexView  `json:"last_tick_contested_hexes"`
 	Units                  []unitView          `json:"units"`
 	Buildings              []buildingView      `json:"buildings"`
 }
@@ -209,6 +216,7 @@ func (h *stateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Resources:              h.w.GetResources(team),
 		Population:             toPopulationView(h.w.GetPopulationSummary(team)),
 		LastTickFailedCommands: toFailedCommandViews(h.w.GetLastTickCommandFailures(team)),
+		LastTickContestedHexes: toContestedHexViews(h.w.GetVisibleLastTickContestedHexes(team)),
 		Units:                  units,
 		Buildings:              buildings,
 	}
@@ -233,9 +241,10 @@ type commandAcceptedResponse struct {
 }
 
 type fullStateResponse struct {
-	Tick  uint64        `json:"tick"`
-	Team1 fullStateTeam `json:"team1"`
-	Team2 fullStateTeam `json:"team2"`
+	Tick                   uint64             `json:"tick"`
+	LastTickContestedHexes []contestedHexView `json:"last_tick_contested_hexes"`
+	Team1                  fullStateTeam      `json:"team1"`
+	Team2                  fullStateTeam      `json:"team2"`
 }
 
 type fullStateHandler struct {
@@ -281,9 +290,10 @@ func (h *fullStateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := fullStateResponse{
-		Tick:  h.w.GetTick(),
-		Team1: teamData(entity.Team1),
-		Team2: teamData(entity.Team2),
+		Tick:                   h.w.GetTick(),
+		LastTickContestedHexes: toContestedHexViews(h.w.GetLastTickContestedHexes()),
+		Team1:                  teamData(entity.Team1),
+		Team2:                  teamData(entity.Team2),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -687,6 +697,18 @@ func toFailedCommandViews(failures []world.CommandFailure) []failedCommandView {
 			ResolvedTick:  failure.ResolvedTick,
 			Code:          failure.Code,
 			Reason:        failure.Reason,
+		})
+	}
+	return out
+}
+
+func toContestedHexViews(contests []world.ContestedHex) []contestedHexView {
+	out := make([]contestedHexView, 0, len(contests))
+	for _, contest := range contests {
+		out = append(out, contestedHexView{
+			Coord:        coordView{Q: contest.Coord.Q, R: contest.Coord.R},
+			Team1UnitIDs: append([]entity.EntityID(nil), contest.Team1UnitIDs...),
+			Team2UnitIDs: append([]entity.EntityID(nil), contest.Team2UnitIDs...),
 		})
 	}
 	return out

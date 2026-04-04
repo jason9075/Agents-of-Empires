@@ -675,6 +675,7 @@
       let gameState = null
       let tileMap = {} // "q,r" → tile
       let entityMap = {} // "q,r" → [{type, data}]
+      let contestedMap = {} // "q,r" -> contested hex summary
       let sidebarVisible = true
       let unitAnimations = {} // unit id → animation state
       let animationFrameId = null
@@ -698,6 +699,10 @@
         gameState = await stateRes.json()
         syncUnitAnimations(prevUnitsByID, gameState)
         entityMap = AODMapUI.buildEntityMap(gameState)
+        contestedMap = AODMapUI.buildContestedMap(gameState)
+        if (hasActiveBattleEffects(gameState)) {
+          startAnimationLoop()
+        }
       }
 
       function buildUnitMap(state) {
@@ -758,6 +763,80 @@
         ctx.restore()
       }
 
+      function hasActiveBattleEffects(state) {
+        if (!state) return false
+        if ((state.last_tick_contested_hexes || []).length > 0) return true
+        for (const u of [...(state.team1.units || []), ...(state.team2.units || [])]) {
+          if (u.attack_target_id) return true
+        }
+        return false
+      }
+
+      function buildEntityPixelMap(state) {
+        const positions = {}
+
+        for (const b of [...(state.team1.buildings || []), ...(state.team2.buildings || [])]) {
+          const { x, y } = hexToPixel(b.position.q, b.position.r)
+          positions[String(b.id)] = { x: x + PAD, y: y + PAD, type: 'building' }
+        }
+
+        for (const u of [...(state.team1.units || []), ...(state.team2.units || [])]) {
+          const { x, y } = getUnitPixelPosition(u)
+          positions[String(u.id)] = { x: x + PAD, y: y + PAD, type: 'unit' }
+        }
+
+        return positions
+      }
+
+      function drawBattleLinks(ctx, state) {
+        const positions = buildEntityPixelMap(state)
+        const drawn = new Set()
+        const now = performance.now()
+        const pulse = 0.76 + 0.24 * Math.sin(now / 150)
+
+        for (const u of [...(state.team1.units || []), ...(state.team2.units || [])]) {
+          if (!u.attack_target_id) continue
+
+          const from = positions[String(u.id)]
+          const to = positions[String(u.attack_target_id)]
+          if (!from || !to) continue
+
+          const key = `${u.id}:${u.attack_target_id}`
+          if (drawn.has(key)) continue
+          drawn.add(key)
+
+          const grad = ctx.createLinearGradient(from.x, from.y, to.x, to.y)
+          if (u.team === 1) {
+            grad.addColorStop(0, `rgba(110, 195, 255, ${0.15 + 0.3 * pulse})`)
+            grad.addColorStop(0.5, `rgba(255, 237, 166, ${0.35 + 0.25 * pulse})`)
+            grad.addColorStop(1, `rgba(255, 122, 122, ${0.18 + 0.24 * pulse})`)
+          } else {
+            grad.addColorStop(0, `rgba(255, 122, 122, ${0.18 + 0.24 * pulse})`)
+            grad.addColorStop(0.5, `rgba(255, 237, 166, ${0.35 + 0.25 * pulse})`)
+            grad.addColorStop(1, `rgba(110, 195, 255, ${0.15 + 0.3 * pulse})`)
+          }
+
+          ctx.save()
+          ctx.globalCompositeOperation = 'screen'
+          ctx.strokeStyle = grad
+          ctx.lineWidth = 2.8
+          ctx.lineCap = 'round'
+          ctx.beginPath()
+          ctx.moveTo(from.x, from.y)
+          ctx.lineTo(to.x, to.y)
+          ctx.stroke()
+
+          const midX = (from.x + to.x) / 2
+          const midY = (from.y + to.y) / 2
+          ctx.fillStyle = `rgba(255, 232, 180, ${0.75 + 0.15 * pulse})`
+          ctx.font = 'bold 12px system-ui'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText('✦', midX, midY)
+          ctx.restore()
+        }
+      }
+
       function syncUnitAnimations(prevUnitsByID, nextState) {
         const nextUnits = buildUnitMap(nextState)
         const nextAnimations = {}
@@ -806,7 +885,10 @@
 
           drawMap()
 
-          if (Object.keys(unitAnimations).length > 0) {
+          if (
+            Object.keys(unitAnimations).length > 0 ||
+            hasActiveBattleEffects(gameState)
+          ) {
             animationFrameId = requestAnimationFrame(step)
           }
         }
@@ -911,7 +993,10 @@
           AODMapUI.drawProductionOverlay(ctx, cx, cy, b)
         }
 
-        // ── 3. Units ──
+        // ── 3. Battle links ──
+        drawBattleLinks(ctx, gameState)
+
+        // ── 4. Units ──
         for (const u of [
           ...(gameState.team1.units || []),
           ...(gameState.team2.units || []),
@@ -943,6 +1028,14 @@
 
           AODMapUI.drawAttackOverlay(ctx, cx, cy, u, HEX_SIZE)
           AODMapUI.drawCarryOverlay(ctx, cx, cy, u)
+        }
+
+        // ── 5. Contested hexes ──
+        for (const contest of gameState.last_tick_contested_hexes || []) {
+          const { x, y } = hexToPixel(contest.coord.q, contest.coord.r)
+          const cx = x + PAD,
+            cy = y + PAD
+          AODMapUI.drawContestedOverlay(ctx, cx, cy, contest, HEX_SIZE)
         }
 
         ctx.restore() // undo ctx.scale(zoomScale)
@@ -1090,7 +1183,7 @@
       AODMapUI.bindCanvasTooltip({
         canvas,
         tooltip,
-        getScene: () => ({ mapData, tileMap, entityMap, zoomScale }),
+        getScene: () => ({ mapData, tileMap, entityMap, contestedMap, zoomScale }),
         isBlocked: () => isDragging,
         pad: PAD,
         hexSize: HEX_SIZE,

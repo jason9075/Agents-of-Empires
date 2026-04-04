@@ -32,6 +32,14 @@
     return entityMap
   }
 
+  function buildContestedMap(state) {
+    const contestedMap = {}
+    for (const contest of state?.last_tick_contested_hexes || []) {
+      contestedMap[`${contest.coord.q},${contest.coord.r}`] = contest
+    }
+    return contestedMap
+  }
+
   function loadImage(images, src) {
     return new Promise((resolve) => {
       const img = new Image()
@@ -158,17 +166,62 @@
     ctx.restore()
   }
 
-  function buildTooltipHTML(q, r, tile, entities) {
+  function drawContestedOverlay(ctx, cx, cy, contest, hexSize) {
+    if (!contest) return
+    const pulse = 0.72 + 0.28 * Math.sin(performance.now() / 140)
+    ctx.save()
+    ctx.globalCompositeOperation = 'screen'
+
+    const glow = ctx.createRadialGradient(cx, cy, hexSize * 0.1, cx, cy, hexSize * 1.05)
+    glow.addColorStop(0, `rgba(255, 240, 160, ${0.38 * pulse})`)
+    glow.addColorStop(0.55, `rgba(255, 124, 92, ${0.22 * pulse})`)
+    glow.addColorStop(1, 'rgba(255, 124, 92, 0)')
+    ctx.fillStyle = glow
+    ctx.beginPath()
+    ctx.arc(cx, cy, hexSize * 1.05, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.strokeStyle = `rgba(255, 220, 138, ${0.72 * pulse})`
+    ctx.lineWidth = 2.2
+    ctx.beginPath()
+    ctx.arc(cx, cy, hexSize * (0.44 + 0.05 * pulse), 0, Math.PI * 2)
+    ctx.stroke()
+
+    ctx.strokeStyle = `rgba(255, 96, 96, ${0.85 * pulse})`
+    ctx.lineWidth = 2.6
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(cx - hexSize * 0.34, cy - hexSize * 0.34)
+    ctx.lineTo(cx + hexSize * 0.34, cy + hexSize * 0.34)
+    ctx.moveTo(cx + hexSize * 0.34, cy - hexSize * 0.34)
+    ctx.lineTo(cx - hexSize * 0.34, cy + hexSize * 0.34)
+    ctx.stroke()
+
+    ctx.fillStyle = 'rgba(255, 246, 206, 0.95)'
+    ctx.font = 'bold 11px system-ui'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('⚔', cx, cy - hexSize * 0.78)
+    ctx.restore()
+  }
+
+  function buildTooltipHTML(q, r, tile, entities, contest) {
     let html = `<b>(${q}, ${r})</b> ${formatKindLabel(tile.terrain)}`
     if (tile.remaining > 0) {
       html += `<br>Remaining ${tile.remaining}`
+    }
+    if (contest) {
+      const team1Count = contest.team1_unit_ids?.length || 0
+      const team2Count = contest.team2_unit_ids?.length || 0
+      html += `<br><b>Contested</b> T1 ${team1Count} vs T2 ${team2Count}`
     }
     if (!entities) {
       return html
     }
 
     for (const { type, data } of entities) {
-      html += `<br>#${data.id} · Team ${data.team} · ${formatKindLabel(data.kind)} HP ${data.hp}/${data.max_hp}`
+      const label = type === 'unit' ? 'Unit' : 'Building'
+      html += `<br><b>${label} #${data.id}</b> · Team ${data.team} · ${formatKindLabel(data.kind)} HP ${data.hp}/${data.max_hp}`
       if (type === 'unit') {
         if (data.carry_amount > 0) {
           html += `<br>&nbsp;&nbsp;Carry ${data.carry_amount} ${data.carry_resource}`
@@ -209,6 +262,7 @@
       const mapData = scene?.mapData
       const tileMap = scene?.tileMap || {}
       const entityMap = scene?.entityMap || {}
+      const contestedMap = scene?.contestedMap || {}
       const zoomScale = scene?.zoomScale || 1
       if (!mapData) {
         hideTooltip(tooltip)
@@ -221,6 +275,7 @@
       const { q, r } = pixelToHex(px, py, hexSize, sqrt3)
       const tile = tileMap[`${q},${r}`]
       const entities = entityMap[`${q},${r}`]
+      const contest = contestedMap[`${q},${r}`]
 
       if (
         !tile ||
@@ -233,7 +288,7 @@
         return
       }
 
-      tooltip.innerHTML = buildTooltipHTML(q, r, tile, entities)
+      tooltip.innerHTML = buildTooltipHTML(q, r, tile, entities, contest)
       tooltip.style.display = 'block'
       tooltip.style.left = event.clientX + positionOffset + 'px'
       tooltip.style.top = event.clientY + positionOffset + 'px'
@@ -245,9 +300,11 @@
   }
 
   window.AODMapUI = {
+    buildContestedMap,
     buildEntityMap,
     buildTileMap,
     bindCanvasTooltip,
+    drawContestedOverlay,
     drawAttackOverlay,
     drawCarryOverlay,
     drawConstructionOverlay,

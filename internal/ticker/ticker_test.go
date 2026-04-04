@@ -115,7 +115,7 @@ func TestStep_CavalryCannotEnterForest(t *testing.T) {
 	}
 }
 
-func TestStep_SameHexConflictBlocksBothUnits(t *testing.T) {
+func TestStep_SameHexConflictBlocksBothUnitsButStillTriggersCombat(t *testing.T) {
 	w := world.NewWorld(42)
 	q := NewQueue()
 	tk := New(w, q, time.Second)
@@ -123,6 +123,8 @@ func TestStep_SameHexConflictBlocksBothUnits(t *testing.T) {
 	u1 := w.SpawnUnit(entity.Team1, entity.KindInfantry, hex.Coord{Q: 7, R: 7})
 	u2 := w.SpawnUnit(entity.Team2, entity.KindInfantry, hex.Coord{Q: 9, R: 7})
 	target := hex.Coord{Q: 8, R: 7}
+	startHP1 := u1.HP()
+	startHP2 := u2.HP()
 
 	q.Submit(Command{Team: entity.Team1, UnitID: u1.ID(), Kind: CmdMoveFast, TargetCoord: &target})
 	q.Submit(Command{Team: entity.Team2, UnitID: u2.ID(), Kind: CmdMoveFast, TargetCoord: &target})
@@ -133,6 +135,16 @@ func TestStep_SameHexConflictBlocksBothUnits(t *testing.T) {
 	}
 	if got := w.GetUnit(u2.ID()).Position(); got != (hex.Coord{Q: 9, R: 7}) {
 		t.Fatalf("unit 2 should stay in place, got %v", got)
+	}
+	if got := w.GetUnit(u1.ID()).HP(); got >= startHP1 {
+		t.Fatalf("unit 1 should take contest damage, hp=%d start=%d", got, startHP1)
+	}
+	if got := w.GetUnit(u2.ID()).HP(); got >= startHP2 {
+		t.Fatalf("unit 2 should take contest damage, hp=%d start=%d", got, startHP2)
+	}
+	contests := w.GetLastTickContestedHexes()
+	if len(contests) != 1 || contests[0].Coord != target {
+		t.Fatalf("expected one contested hex at %v, got %+v", target, contests)
 	}
 }
 
@@ -155,6 +167,63 @@ func TestStep_AttackPersistsAcrossTicks(t *testing.T) {
 
 	if hpAfterSecond >= hpAfterFirst {
 		t.Fatalf("expected persistent attack to continue, hp1=%d hp2=%d", hpAfterFirst, hpAfterSecond)
+	}
+}
+
+func TestStep_MoveGuardTowardOccupiedEnemyHexApproachesAndEngages(t *testing.T) {
+	w := world.NewWorld(42)
+	q := NewQueue()
+	tk := New(w, q, time.Second)
+
+	mover := w.SpawnUnit(entity.Team1, entity.KindInfantry, hex.Coord{Q: 2, R: 2})
+	enemy := w.SpawnUnit(entity.Team2, entity.KindInfantry, hex.Coord{Q: 5, R: 2})
+	target := enemy.Position()
+
+	q.Submit(Command{Team: entity.Team1, UnitID: mover.ID(), Kind: CmdMoveGuard, TargetCoord: &target})
+	tk.step()
+
+	got := w.GetUnit(mover.ID())
+	if got == nil {
+		t.Fatalf("expected mover to remain alive")
+	}
+	if got.Position() == (hex.Coord{Q: 2, R: 2}) {
+		t.Fatalf("expected mover to advance toward occupied enemy target hex")
+	}
+	if hex.Distance(got.Position(), target) != 1 {
+		t.Fatalf("expected mover to end adjacent to occupied enemy target, got pos=%v target=%v", got.Position(), target)
+	}
+	if got.Status() != entity.StatusAttacking {
+		t.Fatalf("expected mover to transition into attacking after guarded advance, got status=%s phase=%s", got.Status(), got.StatusPhase())
+	}
+}
+
+func TestStep_MoveFastTowardOccupiedEnemyHexApproachesWithoutEngaging(t *testing.T) {
+	w := world.NewWorld(42)
+	q := NewQueue()
+	tk := New(w, q, time.Second)
+
+	mover := w.SpawnUnit(entity.Team1, entity.KindInfantry, hex.Coord{Q: 2, R: 2})
+	enemy := w.SpawnUnit(entity.Team2, entity.KindInfantry, hex.Coord{Q: 5, R: 2})
+	target := enemy.Position()
+
+	q.Submit(Command{Team: entity.Team1, UnitID: mover.ID(), Kind: CmdMoveFast, TargetCoord: &target})
+	tk.step()
+
+	got := w.GetUnit(mover.ID())
+	if got == nil {
+		t.Fatalf("expected mover to remain alive")
+	}
+	if got.Position() == (hex.Coord{Q: 2, R: 2}) {
+		t.Fatalf("expected mover to advance toward occupied enemy target hex")
+	}
+	if hex.Distance(got.Position(), target) != 1 {
+		t.Fatalf("expected mover to end adjacent to occupied enemy target, got pos=%v target=%v", got.Position(), target)
+	}
+	if got.Status() != entity.StatusMovingFast {
+		t.Fatalf("expected MOVE_FAST to stay in moving status, got status=%s phase=%s", got.Status(), got.StatusPhase())
+	}
+	if got.StatusPhase() != entity.PhaseMovingToTarget {
+		t.Fatalf("expected MOVE_FAST to keep moving phase, got %s", got.StatusPhase())
 	}
 }
 

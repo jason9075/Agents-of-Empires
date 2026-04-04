@@ -77,14 +77,15 @@ func (t *Ticker) step() {
 	slog.Info("tick", "tick", tick, "commands", len(cmds))
 
 	failures := t.applySubmittedCommands(cmds, tick)
-	t.resolveMovement()
+	contests, contestDamage := t.resolveMovement()
 	t.resolveGuardTransitions()
-	t.resolveCombat()
+	t.resolveCombat(contestDamage)
 	t.resolveEconomy()
 	t.world.ProcessProduction()
 	t.cleanupAttackStatuses()
 	t.world.SetLastTickCommandFailures(entity.Team1, failures[entity.Team1])
 	t.world.SetLastTickCommandFailures(entity.Team2, failures[entity.Team2])
+	t.world.SetLastTickContestedHexes(contests)
 	t.world.IncrementTick()
 }
 
@@ -192,10 +193,12 @@ func (t *Ticker) applySubmittedCommands(cmds []Command, tick uint64) map[entity.
 	return failures
 }
 
-func (t *Ticker) resolveMovement() {
+func (t *Ticker) resolveMovement() ([]world.ContestedHex, map[entity.EntityID]int) {
 	movePlans := make(map[entity.EntityID]movementPlan)
 	remaining := make(map[entity.EntityID]int)
 	maxSteps := 0
+	contestDamage := make(map[entity.EntityID]int)
+	var contests []world.ContestedHex
 
 	for _, u := range t.allUnits() {
 		plan, ok := t.movementDirective(u)
@@ -231,6 +234,12 @@ func (t *Ticker) resolveMovement() {
 		accepted := make(map[entity.EntityID]hex.Coord)
 		for dest, unitIDs := range proposals {
 			if len(unitIDs) != 1 {
+				if contest, ok := t.buildContestedHex(dest, unitIDs); ok {
+					contests = append(contests, contest)
+					for targetID, amount := range t.world.PreviewContestDamage(unitIDs) {
+						contestDamage[targetID] += amount
+					}
+				}
 				for _, unitID := range unitIDs {
 					stopped[unitID] = true
 				}
@@ -251,6 +260,8 @@ func (t *Ticker) resolveMovement() {
 			}
 		}
 	}
+
+	return mergeContestedHexes(contests), contestDamage
 }
 
 func (t *Ticker) resolveGuardTransitions() {
@@ -265,8 +276,11 @@ func (t *Ticker) resolveGuardTransitions() {
 	}
 }
 
-func (t *Ticker) resolveCombat() {
+func (t *Ticker) resolveCombat(extraDamage map[entity.EntityID]int) {
 	damage := make(map[entity.EntityID]int)
+	for targetID, amount := range extraDamage {
+		damage[targetID] += amount
+	}
 	for _, u := range t.allUnits() {
 		if u.Status() != entity.StatusAttacking {
 			continue
@@ -406,6 +420,9 @@ func (t *Ticker) movementDirective(u *entity.Unit) (movementPlan, bool) {
 		if !ok || u.Position() == target {
 			return movementPlan{}, false
 		}
+		if occupant := t.world.UnitAt(target); occupant != nil && occupant.ID() != u.ID() {
+			return newMovementPlan(t.guardApproachTargets(u, target), u.Stats().SpeedFast, entity.PhaseMovingToTarget)
+		}
 		return newMovementPlan([]hex.Coord{target}, u.Stats().SpeedFast, entity.PhaseMovingToTarget)
 	case entity.StatusMovingGuard:
 		if _, ok := t.world.FindAutoAttackTarget(u.ID()); ok {
@@ -414,6 +431,9 @@ func (t *Ticker) movementDirective(u *entity.Unit) (movementPlan, bool) {
 		target, ok := u.StatusTargetCoord()
 		if !ok || u.Position() == target {
 			return movementPlan{}, false
+		}
+		if occupant := t.world.UnitAt(target); occupant != nil && occupant.ID() != u.ID() {
+			return newMovementPlan(t.guardApproachTargets(u, target), u.Stats().SpeedGuard, entity.PhaseMovingToTarget)
 		}
 		return newMovementPlan([]hex.Coord{target}, u.Stats().SpeedGuard, entity.PhaseMovingToTarget)
 	case entity.StatusAttacking:
@@ -582,11 +602,84 @@ func (t *Ticker) buildApproachTargets(u *entity.Unit, target hex.Coord) []hex.Co
 	return out
 }
 
+func (t *Ticker) guardApproachTargets(u *entity.Unit, target hex.Coord) []hex.Coord {
+	var out []hex.Coord
+	for _, candidate := range hex.Ring(target, 1) {
+		if candidate == u.Position() || t.world.CanUnitOccupy(u.Kind(), candidate, u.ID()) {
+			out = append(out, candidate)
+		}
+	}
+	return out
+}
+
 func coordLess(a, b hex.Coord) bool {
 	if a.Q != b.Q {
 		return a.Q < b.Q
 	}
 	return a.R < b.R
+}
+
+func (t *Ticker) buildContestedHex(dest hex.Coord, unitIDs []entity.EntityID) (world.ContestedHex, bool) {
+	contest := world.ContestedHex{Coord: dest}
+	for _, unitID := range unitIDs {
+		unit := t.world.GetUnit(unitID)
+		if unit == nil || !unit.IsAlive() {
+			continue
+		}
+		switch unit.Team() {
+		case entity.Team1:
+			contest.Team1UnitIDs = append(contest.Team1UnitIDs, unitID)
+		case entity.Team2:
+			contest.Team2UnitIDs = append(contest.Team2UnitIDs, unitID)
+		}
+	}
+	sort.Slice(contest.Team1UnitIDs, func(i, j int) bool { return contest.Team1UnitIDs[i] < contest.Team1UnitIDs[j] })
+	sort.Slice(contest.Team2UnitIDs, func(i, j int) bool { return contest.Team2UnitIDs[i] < contest.Team2UnitIDs[j] })
+	return contest, len(contest.Team1UnitIDs) > 0 && len(contest.Team2UnitIDs) > 0
+}
+
+func mergeContestedHexes(contests []world.ContestedHex) []world.ContestedHex {
+	byCoord := make(map[hex.Coord]*world.ContestedHex, len(contests))
+	for _, contest := range contests {
+		existing, ok := byCoord[contest.Coord]
+		if !ok {
+			c := world.ContestedHex{Coord: contest.Coord}
+			c.Team1UnitIDs = append(c.Team1UnitIDs, contest.Team1UnitIDs...)
+			c.Team2UnitIDs = append(c.Team2UnitIDs, contest.Team2UnitIDs...)
+			byCoord[contest.Coord] = &c
+			continue
+		}
+		existing.Team1UnitIDs = append(existing.Team1UnitIDs, contest.Team1UnitIDs...)
+		existing.Team2UnitIDs = append(existing.Team2UnitIDs, contest.Team2UnitIDs...)
+	}
+
+	out := make([]world.ContestedHex, 0, len(byCoord))
+	for _, contest := range byCoord {
+		contest.Team1UnitIDs = uniqueSortedEntityIDs(contest.Team1UnitIDs)
+		contest.Team2UnitIDs = uniqueSortedEntityIDs(contest.Team2UnitIDs)
+		out = append(out, *contest)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Coord.R != out[j].Coord.R {
+			return out[i].Coord.R < out[j].Coord.R
+		}
+		return out[i].Coord.Q < out[j].Coord.Q
+	})
+	return out
+}
+
+func uniqueSortedEntityIDs(ids []entity.EntityID) []entity.EntityID {
+	if len(ids) == 0 {
+		return nil
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	out := ids[:1]
+	for _, id := range ids[1:] {
+		if id != out[len(out)-1] {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 func (t *Ticker) validateMoveAtResolution(cmd Command, tick uint64) (world.CommandFailure, bool) {

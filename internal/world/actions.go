@@ -37,6 +37,12 @@ const (
 	ProductionEnqueuePopulationCapReached
 )
 
+type contestUnit struct {
+	id   entity.EntityID
+	team entity.Team
+	unit *entity.Unit
+}
+
 func isAdjacentToFriendlyTownCenter(buildings map[entity.EntityID]*entity.Building, team entity.Team, pos hex.Coord) bool {
 	for _, b := range buildings {
 		if !b.IsAlive() || !b.IsComplete() || b.Team() != team || b.Kind() != entity.KindTownCenter {
@@ -597,6 +603,47 @@ func (w *World) FindAutoAttackTarget(attackerID entity.EntityID) (entity.EntityI
 	return candidates[0].id, true
 }
 
+// PreviewContestDamage resolves the simultaneous damage caused by units contesting the same destination hex.
+// Range is ignored because the clash is treated as a direct melee over that contested tile.
+func (w *World) PreviewContestDamage(unitIDs []entity.EntityID) map[entity.EntityID]int {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	contestants := make([]contestUnit, 0, len(unitIDs))
+	for _, id := range unitIDs {
+		u := w.Units[id]
+		if u == nil || !u.IsAlive() {
+			continue
+		}
+		contestants = append(contestants, contestUnit{id: id, team: u.Team(), unit: u})
+	}
+	if len(contestants) < 2 {
+		return nil
+	}
+
+	teamCount := map[entity.Team]int{}
+	for _, contestant := range contestants {
+		teamCount[contestant.team]++
+	}
+	if len(teamCount) < 2 {
+		return nil
+	}
+
+	damage := make(map[entity.EntityID]int)
+	for _, attacker := range contestants {
+		target, ok := pickContestTarget(attacker, contestants)
+		if !ok {
+			continue
+		}
+		amount := attacker.unit.Stats().Attack + entity.CounterBonus(attacker.unit.Kind(), target.unit.Kind()) - target.unit.Stats().Defense
+		if amount < 1 {
+			amount = 1
+		}
+		damage[target.id] += amount
+	}
+	return damage
+}
+
 // ApplyDamage applies simultaneous combat damage and removes dead entities after damage is accumulated.
 func (w *World) ApplyDamage(damage map[entity.EntityID]int) {
 	w.mu.Lock()
@@ -624,6 +671,23 @@ func (w *World) ApplyDamage(damage map[entity.EntityID]int) {
 			delete(w.Buildings, id)
 		}
 	}
+}
+
+func pickContestTarget(attacker contestUnit, contestants []contestUnit) (contestUnit, bool) {
+	var target contestUnit
+	found := false
+	for _, candidate := range contestants {
+		if candidate.team == attacker.team {
+			continue
+		}
+		if !found ||
+			candidate.unit.HP() < target.unit.HP() ||
+			(candidate.unit.HP() == target.unit.HP() && candidate.id < target.id) {
+			target = candidate
+			found = true
+		}
+	}
+	return target, found
 }
 
 // EnqueueProduction adds a unit to a building queue if the team can pay and the producer matches.
@@ -828,6 +892,17 @@ func (w *World) BuildingAt(c hex.Coord) *entity.Building {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	return buildingAtLocked(w.Buildings, c)
+}
+
+func (w *World) UnitAt(c hex.Coord) *entity.Unit {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	for _, u := range w.Units {
+		if u.IsAlive() && u.Position() == c {
+			return u
+		}
+	}
+	return nil
 }
 
 // CanDepositCarry reports whether a villager can deposit carried resources now.

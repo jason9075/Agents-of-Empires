@@ -258,16 +258,16 @@ func newVillagerMoveThenBuildPreset() sandboxPresetDefinition {
 }
 
 func newInfantryDuelPreset() sandboxPresetDefinition {
-	move1Target := coordView{Q: 2, R: 2}
-	move2Target := coordView{Q: 3, R: 2}
+	move1Target := coordView{Q: 5, R: 2}
+	move2Target := coordView{Q: 1, R: 2}
 
 	return sandboxPresetDefinition{
 		ID:               "infantry_duel",
 		Name:             "Infantry duel",
-		Description:      "Two infantry units start at (1,2) and (5,2), move into adjacent positions on tick 1, then receive ATTACK commands on tick 2 and keep fighting until both sides are eliminated.",
+		Description:      "Two infantry units start at (1,2) and (5,2), receive MOVE_GUARD commands, close into adjacent positions, then naturally transition into combat until both sides are eliminated.",
 		Width:            7,
 		Height:           5,
-		DefaultPlaybackM: 500,
+		DefaultPlaybackM: 800,
 		MaxTick:          12,
 		Tiles: func() map[hex.Coord]terrain.Type {
 			tiles := make(map[hex.Coord]terrain.Type)
@@ -305,29 +305,15 @@ func newInfantryDuelPreset() sandboxPresetDefinition {
 				RowID:       "move_1",
 				Tick:        1,
 				ActorID:     "infantry_1",
-				Kind:        ticker.CmdMoveFast,
+				Kind:        ticker.CmdMoveGuard,
 				TargetCoord: &move1Target,
 			},
 			{
 				RowID:       "move_2",
 				Tick:        1,
 				ActorID:     "infantry_2",
-				Kind:        ticker.CmdMoveFast,
+				Kind:        ticker.CmdMoveGuard,
 				TargetCoord: &move2Target,
-			},
-			{
-				RowID:         "attack_1",
-				Tick:          2,
-				ActorID:       "infantry_1",
-				Kind:          ticker.CmdAttack,
-				TargetActorID: "infantry_2",
-			},
-			{
-				RowID:         "attack_2",
-				Tick:          2,
-				ActorID:       "infantry_2",
-				Kind:          ticker.CmdAttack,
-				TargetActorID: "infantry_1",
 			},
 		},
 	}

@@ -21,19 +21,24 @@ No other documentation is needed to make correct API calls.
 Each cell is identified by integer odd-r offset coordinates `(q, r)`.
 
 ```
-Neighbor directions from any cell (q, r):
+Neighbor directions for an even row `r`:
+  (+1,  0)  East
+  ( 0, -1)  North-East
+  (-1, -1)  North-West
+  (-1,  0)  West
+  (-1, +1)  South-West
+  ( 0, +1)  South-East
+
+Neighbor directions for an odd row `r`:
   (+1,  0)  East
   (+1, -1)  North-East
   ( 0, -1)  North-West
   (-1,  0)  West
-  (-1, +1)  South-West
-  ( 0, +1)  South-East
+  ( 0, +1)  South-West
+  (+1, +1)  South-East
 ```
 
-**Distance formula** (use this to plan moves and check LOS):
-```
-distance(a, b) = max( |a.q - b.q|, |a.r - b.r|, |(a.q + a.r) - (b.q + b.r)| )
-```
+Distance should be computed with odd-r offset hex math. Do not use rectangular Manhattan distance.
 
 ---
 
@@ -102,6 +107,13 @@ Returns current game state filtered by your team's **Line of Sight (LOS)**.
     "reserved": 1,
     "cap": 20
   },
+  "last_tick_contested_hexes": [
+    {
+      "coord": { "q": 8, "r": 7 },
+      "team1_unit_ids": [2],
+      "team2_unit_ids": [7]
+    }
+  ],
   "last_tick_failed_commands": [
     {
       "command_id": 14,
@@ -166,6 +178,7 @@ Returns current game state filtered by your team's **Line of Sight (LOS)**.
 - `tick` — current game tick number (starts at 0 and increments once per server tick interval).
 - `resources` — your team's current stockpile only. Enemy resources are never exposed.
 - `population` — current living population, reserved queue population, and the hard team cap.
+- `last_tick_contested_hexes` — destination hexes where opposing units tried to enter the same tile on the most recently resolved tick and therefore fought over it while staying in place.
 - `last_tick_failed_commands` — permanent execution failures from the most recently resolved tick for your team only.
 - `status` — the unit's persistent action state, such as `IDLE`, `MOVING_FAST`, `MOVING_GUARD`, `ATTACKING`, `GATHERING`, or `BUILDING`.
 - `status_phase` — the unit's current sub-phase inside that state.
@@ -239,8 +252,8 @@ Submits an action for one of your units. Returns `202 Accepted` immediately with
 
 | Kind          | Required fields                          | Effect                                                    |
 |---------------|------------------------------------------|-----------------------------------------------------------|
-| `MOVE_FAST`   | `target_coord`                           | Persistently move toward target at full speed until arrival, overwrite, or `STOP` |
-| `MOVE_GUARD`  | `target_coord`                           | Persistently move toward target at guarded speed and switch into combat if an enemy enters range |
+| `MOVE_FAST`   | `target_coord`                           | Persistently move toward target at full speed until arrival; if the target hex is occupied by a unit, it still advances toward adjacent approach hexes and waits for the target to open |
+| `MOVE_GUARD`  | `target_coord`                           | Persistently move toward target at guarded speed; if the target hex is occupied by a unit, it still advances toward adjacent approach hexes and switches into combat if an enemy enters range |
 | `ATTACK`      | `target_id`                              | Persistently pursue and attack a specific unit or building until completion, overwrite, or `STOP` |
 | `GATHER`      | `target_coord`                           | Villager persistently gathers from that node, returns to a friendly `town_center`, deposits, and repeats |
 | `BUILD`       | `target_coord`, `building_kind`          | Villager persistently moves to the target and keeps building until completion |
