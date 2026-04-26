@@ -1387,6 +1387,16 @@
         return [...(snapshot.team1?.units || []), ...(snapshot.team2?.units || [])]
       }
 
+      function teamDataForUnit(snapshot, unit) {
+        if (!snapshot || !unit) return null
+        return unit.team === 1 ? snapshot.team1 : snapshot.team2
+      }
+
+      function teamDataForBuilding(snapshot, building) {
+        if (!snapshot || !building) return null
+        return building.team === 1 ? snapshot.team1 : snapshot.team2
+      }
+
       function combinedBuildings(snapshot) {
         return [
           ...(snapshot.team1?.buildings || []),
@@ -1489,6 +1499,8 @@
         canvas.width = logicalWidth
         canvas.height = logicalHeight
         ctx.clearRect(0, 0, canvas.width, canvas.height)
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = 'high'
 
         for (const tile of snapshotTiles(snapshot)) {
           const { x, y } = hexToPixel(tile.coord.q, tile.coord.r)
@@ -1521,16 +1533,14 @@
           const { x, y } = hexToPixel(building.position.q, building.position.r)
           const cx = x + PAD
           const cy = y + PAD
-          const img = images[`assets/buildings/team${building.team}/${building.kind}.png`]
-
           ctx.save()
           if (!building.complete) {
             ctx.globalAlpha = 0.6
           }
-          if (img) {
-            const size = HEX_SIZE * 1.5
-            ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size)
-          } else {
+          const drewBldg = AODMapUI.drawVariantBuildingSprite(
+            ctx, images, building, teamDataForBuilding(snapshot, building), cx, cy, HEX_SIZE * 1.5,
+          )
+          if (!drewBldg) {
             const size = HEX_SIZE * 0.95
             ctx.fillStyle = TEAM_COLOR[building.team] || '#8ca0b0'
             ctx.strokeStyle = 'rgba(0,0,0,0.45)'
@@ -1553,12 +1563,18 @@
           const { x, y } = hexToPixel(unit.position.q, unit.position.r)
           const cx = x + PAD
           const cy = y + PAD
-          const img = images[`assets/units/team${unit.team}/${unit.kind}.png`]
+          const size = HEX_SIZE * 1.4
+          const drewSprite = AODMapUI.drawVariantUnitSprite(
+            ctx,
+            images,
+            unit,
+            teamDataForUnit(snapshot, unit),
+            cx,
+            cy,
+            size,
+          )
 
-          if (img) {
-            const size = HEX_SIZE * 1.4
-            ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size)
-          } else {
+          if (!drewSprite) {
             const radius = HEX_SIZE * 0.42
             ctx.beginPath()
             ctx.arc(cx, cy, radius, 0, Math.PI * 2)
@@ -1716,6 +1732,8 @@
             terrains: ALL_TERRAINS,
             unitKinds: ALL_UNIT_KINDS,
             buildingKinds: ALL_BLDG_KINDS,
+            unitFactions: ['linux', 'microsoft'],
+            buildingFactions: ['linux', 'microsoft'],
           })
           presetList = await fetchPresets()
           const select = document.getElementById('preset-select')

@@ -763,6 +763,16 @@
         ctx.restore()
       }
 
+      function teamDataForUnit(state, unit) {
+        if (!state || !unit) return null
+        return unit.team === 1 ? state.team1 : state.team2
+      }
+
+      function teamDataForBuilding(state, building) {
+        if (!state || !building) return null
+        return building.team === 1 ? state.team1 : state.team2
+      }
+
       function hasActiveBattleEffects(state) {
         if (!state) return false
         if ((state.last_tick_contested_hexes || []).length > 0) return true
@@ -918,6 +928,8 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height)
         ctx.save()
         ctx.scale(zoomScale, zoomScale)
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = 'high'
 
         // ── 1. Terrain ──
         for (const tile of mapData.tiles) {
@@ -964,16 +976,14 @@
           const { x, y } = hexToPixel(b.position.q, b.position.r)
           const cx = x + PAD,
             cy = y + PAD
-          const img = images[`assets/buildings/team${b.team}/${b.kind}.png`]
-
           ctx.save()
           if (!b.complete) {
             ctx.globalAlpha = 0.58
           }
-          if (img) {
-            const s = HEX_SIZE * 1.5
-            drawTeamSprite(ctx, img, b.team, cx, cy, s)
-          } else {
+          const drewBldg = AODMapUI.drawVariantBuildingSprite(
+            ctx, images, b, teamDataForBuilding(gameState, b), cx, cy, HEX_SIZE * 1.5,
+          )
+          if (!drewBldg) {
             // Fallback: coloured square + abbreviation.
             const s = HEX_SIZE * 0.9
             ctx.fillStyle = TEAM_COLOR[b.team]
@@ -1004,12 +1014,19 @@
           const { x, y } = getUnitPixelPosition(u)
           const cx = x + PAD,
             cy = y + PAD
-          const img = images[`assets/units/team${u.team}/${u.kind}.png`]
+          const s = HEX_SIZE * 1.4
+          const drewSprite = AODMapUI.drawVariantUnitSprite(
+            ctx,
+            images,
+            u,
+            teamDataForUnit(gameState, u),
+            cx,
+            cy,
+            s,
+            u.team === HORIZONTALLY_FLIPPED_TEAM,
+          )
 
-          if (img) {
-            const s = HEX_SIZE * 1.4
-            drawTeamSprite(ctx, img, u.team, cx, cy, s)
-          } else {
+          if (!drewSprite) {
             // Fallback: coloured circle + abbreviation.
             const radius = HEX_SIZE * 0.55
             ctx.beginPath()
@@ -1232,6 +1249,8 @@
         terrains: ALL_TERRAINS,
         unitKinds: ALL_UNIT_KINDS,
         buildingKinds: ALL_BLDG_KINDS,
+        unitFactions: ['linux', 'microsoft'],
+        buildingFactions: ['linux', 'microsoft'],
       }).then(() => {
         if (mapData) drawMap()
       })

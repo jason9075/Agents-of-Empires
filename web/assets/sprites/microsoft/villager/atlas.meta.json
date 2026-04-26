@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "unit_kind": "villager",
+  "faction": "microsoft",
+  "atlas": {
+    "image": "assets/sprites/microsoft/villager/atlas.png",
+    "mask_image": "assets/sprites/microsoft/villager/atlas_mask.png",
+    "width": 1536,
+    "height": 3536
+  },
+  "anchor": "feet",
+  "view": "topdown_3_4",
+  "actions": {
+    "idle": {
+      "rect": { "x": 0, "y": 0, "w": 1256, "h": 1256 },
+      "rows": 2,
+      "cols": 2,
+      "frame_width": 628,
+      "frame_height": 628,
+      "frame_count": 4,
+      "fps": 5,
+      "loop": true,
+      "order": "row-major"
+    },
+    "walk": {
+      "rect": { "x": 0, "y": 1256, "w": 1256, "h": 1256 },
+      "rows": 4,
+      "cols": 4,
+      "frame_width": 314,
+      "frame_height": 314,
+      "frame_count": 16,
+      "fps": 9,
+      "loop": true,
+      "order": "row-major",
+      "row_semantics": {
+        "0": "down",
+        "1": "left",
+        "2": "right",
+        "3": "up"
+      }
+    },
+    "work": {
+      "rect": { "x": 0, "y": 2512, "w": 1536, "h": 1024 },
+      "rows": 2,
+      "cols": 3,
+      "frame_width": 512,
+      "frame_height": 512,
+      "frame_count": 6,
+      "fps": 8,
+      "loop": true,
+      "order": "row-major",
+      "aliases": ["gather", "build"]
+    }
+  }
+}

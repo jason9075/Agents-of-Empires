@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jason9075/agents_of_dynasties/internal/api"
+	"github.com/jason9075/agents_of_dynasties/internal/entity"
 	"github.com/jason9075/agents_of_dynasties/internal/ticker"
 	"github.com/jason9075/agents_of_dynasties/internal/world"
 )
@@ -25,10 +26,20 @@ func main() {
 	seed := flag.Int64("seed", 42, "World generation seed")
 	tickInterval := flag.Duration("tick", ticker.DefaultInterval, "Game tick interval")
 	webDir := flag.String("web-dir", "./web", "Directory of static frontend files")
+	faction1 := flag.String("faction1", "linux", "Faction for team 1 (e.g. linux, microsoft)")
+	variant1 := flag.String("variant1", "blue", "Colour variant for team 1")
+	faction2 := flag.String("faction2", "microsoft", "Faction for team 2 (e.g. linux, microsoft)")
+	variant2 := flag.String("variant2", "red", "Colour variant for team 2")
 	flag.Parse()
 
 	slog.Info("initializing world", "seed", *seed)
 	w := world.NewWorld(*seed)
+	w.SetTeamAppearance(entity.Team1, world.TeamAppearance{Faction: *faction1, Variant: *variant1})
+	w.SetTeamAppearance(entity.Team2, world.TeamAppearance{Faction: *faction2, Variant: *variant2})
+	slog.Info("team appearances set",
+		"team1", *faction1+"/"+*variant1,
+		"team2", *faction2+"/"+*variant2,
+	)
 
 	queue := ticker.NewQueue()
 	t := ticker.New(w, queue, *tickInterval)

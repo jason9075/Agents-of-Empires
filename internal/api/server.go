@@ -22,6 +22,7 @@ func NewServer(w *world.World, q *ticker.Queue, webDir string) *Server {
 	mux.Handle("/state/full", &fullStateHandler{w: w})
 	mux.Handle("/commands", &commandsHandler{w: w, q: q})
 	mux.Handle("/command", &commandHandler{w: w, q: q})
+	mux.Handle("PUT /config/teams/{team}/appearance", &teamAppearanceHandler{w: w})
 	mux.Handle("/sandbox/presets", &sandboxPresetsHandler{})
 	mux.Handle("/sandbox/simulate", &sandboxSimulateHandler{})
 

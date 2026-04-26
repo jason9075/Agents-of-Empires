@@ -142,8 +142,8 @@
 <div class="section-header">
   <h2>Units</h2>
   <div class="team-toggle" id="units-toggle">
-    <button class="active" onclick="switchTeam('units', 1)">Team 1</button>
-    <button onclick="switchTeam('units', 2)">Team 2</button>
+    <button class="active" onclick="switchTeam('units', 1)">Linux</button>
+    <button onclick="switchTeam('units', 2)">Microsoft</button>
   </div>
 </div>
 <div class="grid" id="units-grid"></div>
@@ -152,8 +152,8 @@
 <div class="section-header">
   <h2>Buildings</h2>
   <div class="team-toggle" id="buildings-toggle">
-    <button class="active" onclick="switchTeam('buildings', 1)">Team 1</button>
-    <button onclick="switchTeam('buildings', 2)">Team 2</button>
+    <button class="active" onclick="switchTeam('buildings', 1)">Linux</button>
+    <button onclick="switchTeam('buildings', 2)">Microsoft</button>
   </div>
 </div>
 <div class="grid" id="buildings-grid"></div>
@@ -275,7 +275,11 @@
   // Build a grid for a given section + team, store as data attribute.
   function buildGrid(gridEl, entities, basePrefix, section, team) {
     const frag = document.createDocumentFragment();
-    entities.forEach(e => frag.appendChild(makeCard(e, `${basePrefix}team${team}/`, section, team)));
+    const pathPrefix =
+      section === 'units' || section === 'buildings'
+        ? `${basePrefix}${team === 1 ? 'linux' : 'microsoft'}/`
+        : `${basePrefix}team${team}/`;
+    entities.forEach(e => frag.appendChild(makeCard(e, pathPrefix, section, team)));
     gridEl.appendChild(frag);
   }
 

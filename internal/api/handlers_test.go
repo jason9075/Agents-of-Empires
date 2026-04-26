@@ -566,6 +566,45 @@ func TestFullStateHandler_ExposesLastTickContestedHexes(t *testing.T) {
 	}
 }
 
+func TestFullStateHandler_ExposesTeamAppearance(t *testing.T) {
+	w := world.NewWorld(42)
+	w.SetTeamAppearance(entity.Team1, world.TeamAppearance{Faction: "linux", Variant: "red"})
+	w.SetTeamAppearance(entity.Team2, world.TeamAppearance{Faction: "microsoft", Variant: "blue"})
+	h := &fullStateHandler{w: w}
+
+	req := httptest.NewRequest(http.MethodGet, "/state/full", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var resp struct {
+		Team1 struct {
+			Appearance struct {
+				Faction string `json:"faction"`
+				Variant string `json:"variant"`
+			} `json:"appearance"`
+		} `json:"team1"`
+		Team2 struct {
+			Appearance struct {
+				Faction string `json:"faction"`
+				Variant string `json:"variant"`
+			} `json:"appearance"`
+		} `json:"team2"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal full state response: %v", err)
+	}
+	if resp.Team1.Appearance.Faction != "linux" || resp.Team1.Appearance.Variant != "red" {
+		t.Fatalf("unexpected team1 appearance: %+v", resp.Team1.Appearance)
+	}
+	if resp.Team2.Appearance.Faction != "microsoft" || resp.Team2.Appearance.Variant != "blue" {
+		t.Fatalf("unexpected team2 appearance: %+v", resp.Team2.Appearance)
+	}
+}
+
 type commandErrorEnvelope struct {
 	Error struct {
 		Code   string `json:"code"`

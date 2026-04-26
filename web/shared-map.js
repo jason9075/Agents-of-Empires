@@ -52,20 +52,154 @@
     })
   }
 
-  async function preloadAssets(images, { terrains = [], unitKinds = [], buildingKinds = [] }) {
+  function normalizeAppearance(teamData, teamNumber) {
+    const fallback =
+      teamNumber === 1
+        ? { faction: 'linux', variant: 'blue' }
+        : { faction: 'microsoft', variant: 'red' }
+    const appearance = teamData?.appearance || {}
+    return {
+      faction: String(appearance.faction || fallback.faction).toLowerCase(),
+      variant: String(appearance.variant || fallback.variant).toLowerCase(),
+    }
+  }
+
+  function buildUnitAssetPath(teamData, unitKind, suffix = '.png') {
+    const teamNumber = teamData?.units?.[0]?.team || teamData?.buildings?.[0]?.team || 0
+    const appearance = normalizeAppearance(teamData, teamNumber)
+    return `assets/units/${appearance.faction}/${unitKind}${suffix}`
+  }
+
+  function buildBuildingAssetPath(teamData, buildingKind, suffix = '.png') {
+    const teamNumber = teamData?.buildings?.[0]?.team || teamData?.units?.[0]?.team || 0
+    const appearance = normalizeAppearance(teamData, teamNumber)
+    return `assets/buildings/${appearance.faction}/${buildingKind}${suffix}`
+  }
+
+  function variantColor(variant) {
+    switch (String(variant || '').toLowerCase()) {
+      case 'blue':
+        return '#4a90e2'
+      case 'red':
+        return '#e25050'
+      case 'green':
+        return '#48a868'
+      case 'gold':
+      case 'yellow':
+        return '#d6a93c'
+      case 'purple':
+        return '#8c62d8'
+      default:
+        return '#9aa7b6'
+    }
+  }
+
+  async function preloadAssets(
+    images,
+    {
+      terrains = [],
+      unitKinds = [],
+      buildingKinds = [],
+      unitFactions = ['linux', 'microsoft'],
+      buildingFactions = ['linux', 'microsoft'],
+    },
+  ) {
     const tasks = []
     for (const terrain of terrains) {
       tasks.push(loadImage(images, `assets/terrain/${terrain}.png`))
     }
-    for (const team of [1, 2]) {
+    for (const faction of unitFactions) {
       for (const unitKind of unitKinds) {
-        tasks.push(loadImage(images, `assets/units/team${team}/${unitKind}.png`))
+        tasks.push(loadImage(images, `assets/units/${faction}/${unitKind}.png`))
+        tasks.push(loadImage(images, `assets/units/${faction}/${unitKind}_mask.png`))
       }
+    }
+    for (const faction of buildingFactions) {
       for (const buildingKind of buildingKinds) {
-        tasks.push(loadImage(images, `assets/buildings/team${team}/${buildingKind}.png`))
+        tasks.push(loadImage(images, `assets/buildings/${faction}/${buildingKind}.png`))
+        tasks.push(loadImage(images, `assets/buildings/${faction}/${buildingKind}_mask.png`))
       }
     }
     await Promise.all(tasks)
+  }
+
+  // Returns the effective pixel scale from the current canvas transform.
+  // Used to size scratch canvases at physical resolution (not logical units).
+  function ctxPixelScale(ctx) {
+    const t = ctx.getTransform()
+    return Math.sqrt(t.a * t.a + t.b * t.b) || 1
+  }
+
+  function makeMaskScratch(ctx, mask, sz, variantFill) {
+    const physicalSz = Math.ceil(sz * ctxPixelScale(ctx))
+    const scratch = document.createElement('canvas')
+    scratch.width = physicalSz
+    scratch.height = physicalSz
+    const scratchCtx = scratch.getContext('2d')
+    scratchCtx.imageSmoothingEnabled = true
+    scratchCtx.imageSmoothingQuality = 'high'
+    scratchCtx.drawImage(mask, 0, 0, physicalSz, physicalSz)
+    scratchCtx.globalCompositeOperation = 'source-in'
+    scratchCtx.fillStyle = variantFill
+    scratchCtx.fillRect(0, 0, physicalSz, physicalSz)
+    return scratch
+  }
+
+  function drawVariantBuildingSprite(ctx, images, building, teamData, cx, cy, size) {
+    const basePath = buildBuildingAssetPath(teamData, building.kind)
+    const maskPath = buildBuildingAssetPath(teamData, building.kind, '_mask.png')
+    const base = images[basePath]
+    const mask = images[maskPath]
+    if (!base) {
+      return false
+    }
+
+    const sz = Math.ceil(size)
+    const dx = Math.round(cx - sz / 2)
+    const dy = Math.round(cy - sz / 2)
+
+    ctx.save()
+    ctx.drawImage(base, dx, dy, sz, sz)
+
+    if (mask) {
+      const fill = variantColor(normalizeAppearance(teamData, building.team).variant)
+      ctx.drawImage(makeMaskScratch(ctx, mask, sz, fill), dx, dy, sz, sz)
+    }
+
+    ctx.restore()
+    return true
+  }
+
+  function drawVariantUnitSprite(ctx, images, unit, teamData, cx, cy, size, flipHorizontally = false) {
+    const basePath = buildUnitAssetPath(teamData, unit.kind)
+    const maskPath = buildUnitAssetPath(teamData, unit.kind, '_mask.png')
+    const base = images[basePath]
+    const mask = images[maskPath]
+    if (!base) {
+      return false
+    }
+
+    const sz = Math.ceil(size)
+    let dx = Math.round(cx - sz / 2)
+    let dy = Math.round(cy - sz / 2)
+
+    ctx.save()
+    if (flipHorizontally) {
+      ctx.translate(Math.round(cx), Math.round(cy))
+      ctx.scale(-1, 1)
+      dx = Math.round(-sz / 2)
+      dy = Math.round(-sz / 2)
+    }
+
+    ctx.drawImage(base, dx, dy, sz, sz)
+
+    if (mask) {
+      const fill = variantColor(normalizeAppearance(teamData, unit.team).variant)
+      ctx.drawImage(makeMaskScratch(ctx, mask, sz, fill), dx, dy, sz, sz)
+    }
+
+    ctx.restore()
+    return true
   }
 
   function drawResourceRemaining(ctx, cx, cy, tile) {
@@ -310,9 +444,15 @@
     drawConstructionOverlay,
     drawProductionOverlay,
     drawResourceRemaining,
+    drawVariantBuildingSprite,
+    drawVariantUnitSprite,
+    buildBuildingAssetPath,
+    buildUnitAssetPath,
     formatKindLabel,
     hideTooltip,
+    normalizeAppearance,
     pixelToHex,
     preloadAssets,
+    variantColor,
   }
 })()

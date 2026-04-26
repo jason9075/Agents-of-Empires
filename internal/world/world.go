@@ -2,6 +2,7 @@ package world
 
 import (
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -22,6 +23,11 @@ type PopulationSummary struct {
 	Used     int `json:"used"`
 	Reserved int `json:"reserved"`
 	Cap      int `json:"cap"`
+}
+
+type TeamAppearance struct {
+	Faction string `json:"faction"`
+	Variant string `json:"variant"`
 }
 
 type CommandFailure struct {
@@ -62,6 +68,7 @@ type World struct {
 	Units             map[entity.EntityID]*entity.Unit
 	Buildings         map[entity.EntityID]*entity.Building
 	TeamRes           map[entity.Team]Resources
+	TeamAppearance    map[entity.Team]TeamAppearance
 	LastTickFailures  map[entity.Team][]CommandFailure
 	LastTickContests  []ContestedHex
 	Tick              uint64
@@ -81,6 +88,10 @@ func NewWorld(seed int64) *World {
 			entity.Team1: StartingResources,
 			entity.Team2: StartingResources,
 		},
+		TeamAppearance: map[entity.Team]TeamAppearance{
+			entity.Team1: defaultAppearanceForTeam(entity.Team1),
+			entity.Team2: defaultAppearanceForTeam(entity.Team2),
+		},
 		LastTickFailures: map[entity.Team][]CommandFailure{
 			entity.Team1: nil,
 			entity.Team2: nil,
@@ -91,6 +102,50 @@ func NewWorld(seed int64) *World {
 	}
 	generate(w, seed)
 	return w
+}
+
+func defaultAppearanceForTeam(team entity.Team) TeamAppearance {
+	switch team {
+	case entity.Team1:
+		return TeamAppearance{Faction: "linux", Variant: "blue"}
+	case entity.Team2:
+		return TeamAppearance{Faction: "microsoft", Variant: "red"}
+	default:
+		return TeamAppearance{Faction: "neutral", Variant: "neutral"}
+	}
+}
+
+func normalizeAppearance(team entity.Team, appearance TeamAppearance) TeamAppearance {
+	out := TeamAppearance{
+		Faction: strings.ToLower(strings.TrimSpace(appearance.Faction)),
+		Variant: strings.ToLower(strings.TrimSpace(appearance.Variant)),
+	}
+	def := defaultAppearanceForTeam(team)
+	if out.Faction == "" {
+		out.Faction = def.Faction
+	}
+	if out.Variant == "" {
+		out.Variant = def.Variant
+	}
+	return out
+}
+
+func (w *World) GetTeamAppearance(team entity.Team) TeamAppearance {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	if appearance, ok := w.TeamAppearance[team]; ok {
+		return normalizeAppearance(team, appearance)
+	}
+	return defaultAppearanceForTeam(team)
+}
+
+func (w *World) SetTeamAppearance(team entity.Team, appearance TeamAppearance) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.TeamAppearance == nil {
+		w.TeamAppearance = make(map[entity.Team]TeamAppearance)
+	}
+	w.TeamAppearance[team] = normalizeAppearance(team, appearance)
 }
 
 // Tile returns the terrain tile at coord c.

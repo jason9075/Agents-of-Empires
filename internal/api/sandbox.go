@@ -32,14 +32,14 @@ type sandboxPresetActor struct {
 }
 
 type sandboxTimelineRow struct {
-	RowID        string             `json:"row_id,omitempty"`
-	Tick         int                `json:"tick"`
-	ActorID      string             `json:"actor_id"`
-	Kind         ticker.CommandKind `json:"kind"`
-	TargetActorID string            `json:"target_actor_id,omitempty"`
-	TargetCoord  *coordView         `json:"target_coord,omitempty"`
-	BuildingKind *string            `json:"building_kind,omitempty"`
-	UnitKind     *string            `json:"unit_kind,omitempty"`
+	RowID         string             `json:"row_id,omitempty"`
+	Tick          int                `json:"tick"`
+	ActorID       string             `json:"actor_id"`
+	Kind          ticker.CommandKind `json:"kind"`
+	TargetActorID string             `json:"target_actor_id,omitempty"`
+	TargetCoord   *coordView         `json:"target_coord,omitempty"`
+	BuildingKind  *string            `json:"building_kind,omitempty"`
+	UnitKind      *string            `json:"unit_kind,omitempty"`
 }
 
 type sandboxPresetsResponse struct {
@@ -247,8 +247,8 @@ func newVillagerMoveThenBuildPreset() sandboxPresetDefinition {
 		DefaultTimeline: []sandboxTimelineRow{
 			{
 				RowID:        "build_1",
-				Tick:        1,
-				ActorID:     "villager_1",
+				Tick:         1,
+				ActorID:      "villager_1",
 				Kind:         ticker.CmdBuild,
 				TargetCoord:  &buildTarget,
 				BuildingKind: &buildingKind,
@@ -489,8 +489,8 @@ func runSandboxSimulation(preset sandboxPresetDefinition, timeline []sandboxTime
 	}
 
 	resp := sandboxSimulationResponse{
-		Preset:    preset.summaryForMaxTick(maxTick),
-		Map:       sandboxMapForPreset(preset),
+		Preset: preset.summaryForMaxTick(maxTick),
+		Map:    sandboxMapForPreset(preset),
 		Snapshots: []sandboxSnapshot{{
 			Tick:  0,
 			Team1: snapshotTeamData(w, entity.Team1),
@@ -800,6 +800,7 @@ func snapshotTeamData(w *world.World, team entity.Team) fullStateTeam {
 	}
 
 	return fullStateTeam{
+		Appearance: toTeamAppearanceView(w.GetTeamAppearance(team)),
 		Resources:  w.GetResources(team),
 		Population: toPopulationView(w.GetPopulationSummary(team)),
 		Units:      unitViews,
