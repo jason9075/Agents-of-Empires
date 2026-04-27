@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "unit_kind": "spearman",
+  "faction": "microsoft",
+  "pipeline": "fixed_cell_v1",
+  "pipeline_doc": "assets/sprites/PIPELINE.md",
+  "frame_spec": { "tier": "humanoid", "frame_width": 256, "frame_height": 256, "anchor_x": 128, "baseline_y": 220 },
+  "atlas": { "image": "assets/sprites/microsoft/spearman/atlas.png", "mask_image": "assets/sprites/microsoft/spearman/atlas_mask.png", "width": 1024, "height": 2048 },
+  "anchor": "feet",
+  "view": "topdown_3_4",
+  "actions": {
+    "idle": { "rect": { "x": 0, "y": 0, "w": 512, "h": 512 }, "rows": 2, "cols": 2, "frame_width": 256, "frame_height": 256, "frame_count": 4, "fps": 5, "loop": true, "order": "row-major" },
+    "walk": { "rect": { "x": 0, "y": 512, "w": 1024, "h": 1024 }, "rows": 4, "cols": 4, "frame_width": 256, "frame_height": 256, "frame_count": 16, "fps": 9, "loop": true, "order": "row-major", "row_semantics": { "0": "down", "1": "left", "2": "right", "3": "up" } },
+    "attack": { "rect": { "x": 0, "y": 1536, "w": 512, "h": 512 }, "rows": 2, "cols": 2, "frame_width": 256, "frame_height": 256, "frame_count": 4, "fps": 8, "loop": true, "order": "row-major" }
+  }
+}

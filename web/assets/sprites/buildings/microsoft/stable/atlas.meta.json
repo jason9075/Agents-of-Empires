@@ -1,0 +1,15 @@
+{
+  "kind": "stable",
+  "faction": "microsoft",
+  "frame_width": 1024,
+  "frame_height": 1024,
+  "rows": 6,
+  "cols": 2,
+  "frame_count": 12,
+  "fps": 4,
+  "states": {
+    "idle": { "sheet": "idle.png", "start": 0, "count": 4, "rows": 2, "cols": 2 },
+    "damaged": { "sheet": "damaged.png", "start": 4, "count": 4, "rows": 2, "cols": 2 },
+    "burning": { "sheet": "burning.png", "start": 8, "count": 4, "rows": 2, "cols": 2 }
+  }
+}

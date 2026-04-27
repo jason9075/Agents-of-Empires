@@ -1,0 +1,17 @@
+{
+  "kind": "deer",
+  "frame_width": 1024,
+  "frame_height": 1024,
+  "rows": 2,
+  "cols": 2,
+  "frame_count": 4,
+  "fps": 4,
+  "states": {
+    "idle": {
+      "sheet": "idle.png",
+      "atlas": "atlas.png",
+      "start": 0,
+      "count": 4
+    }
+  }
+}

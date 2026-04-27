@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "unit_kind": "scout_cavalry",
+  "asset_type": "unit_bundle",
+  "style": "cute_2d_rts_sprite",
+  "pipeline": "fixed_cell_v1",
+  "pipeline_doc": "assets/sprites/PIPELINE.md",
+  "view": "topdown_3_4",
+  "anchor": "feet",
+  "frame_spec": {
+    "tier": "mounted",
+    "frame_width": 320,
+    "frame_height": 256,
+    "anchor_x": 160,
+    "baseline_y": 220
+  },
+  "factions": {
+    "linux": {
+      "root": "assets/sprites/linux/scout_cavalry",
+      "atlas": {
+        "image": "assets/sprites/linux/scout_cavalry/atlas.png",
+        "mask_image": "assets/sprites/linux/scout_cavalry/atlas_mask.png",
+        "width": 1280,
+        "height": 2048
+      },
+      "actions": {
+        "idle": { "atlas_rect": { "x": 0, "y": 0, "w": 640, "h": 512 }, "sheet": "assets/sprites/linux/scout_cavalry/idle.png", "mask_sheet": "assets/sprites/linux/scout_cavalry/idle_mask.png", "rows": 2, "cols": 2, "frame_width": 320, "frame_height": 256, "frame_count": 4, "fps": 5, "loop": true, "order": "row-major" },
+        "walk": { "atlas_rect": { "x": 0, "y": 512, "w": 1280, "h": 1024 }, "sheet": "assets/sprites/linux/scout_cavalry/walk.png", "mask_sheet": "assets/sprites/linux/scout_cavalry/walk_mask.png", "rows": 4, "cols": 4, "frame_width": 320, "frame_height": 256, "frame_count": 16, "fps": 9, "loop": true, "order": "row-major", "row_semantics": { "0": "down", "1": "left", "2": "right", "3": "up" } },
+        "attack": { "atlas_rect": { "x": 0, "y": 1536, "w": 640, "h": 512 }, "sheet": "assets/sprites/linux/scout_cavalry/attack.png", "mask_sheet": "assets/sprites/linux/scout_cavalry/attack_mask.png", "rows": 2, "cols": 2, "frame_width": 320, "frame_height": 256, "frame_count": 4, "fps": 8, "loop": true, "order": "row-major" }
+      }
+    },
+    "microsoft": {
+      "root": "assets/sprites/microsoft/scout_cavalry",
+      "atlas": {
+        "image": "assets/sprites/microsoft/scout_cavalry/atlas.png",
+        "mask_image": "assets/sprites/microsoft/scout_cavalry/atlas_mask.png",
+        "width": 1280,
+        "height": 2048
+      },
+      "actions": {
+        "idle": { "atlas_rect": { "x": 0, "y": 0, "w": 640, "h": 512 }, "sheet": "assets/sprites/microsoft/scout_cavalry/idle.png", "mask_sheet": "assets/sprites/microsoft/scout_cavalry/idle_mask.png", "rows": 2, "cols": 2, "frame_width": 320, "frame_height": 256, "frame_count": 4, "fps": 5, "loop": true, "order": "row-major" },
+        "walk": { "atlas_rect": { "x": 0, "y": 512, "w": 1280, "h": 1024 }, "sheet": "assets/sprites/microsoft/scout_cavalry/walk.png", "mask_sheet": "assets/sprites/microsoft/scout_cavalry/walk_mask.png", "rows": 4, "cols": 4, "frame_width": 320, "frame_height": 256, "frame_count": 16, "fps": 9, "loop": true, "order": "row-major", "row_semantics": { "0": "down", "1": "left", "2": "right", "3": "up" } },
+        "attack": { "atlas_rect": { "x": 0, "y": 1536, "w": 640, "h": 512 }, "sheet": "assets/sprites/microsoft/scout_cavalry/attack.png", "mask_sheet": "assets/sprites/microsoft/scout_cavalry/attack_mask.png", "rows": 2, "cols": 2, "frame_width": 320, "frame_height": 256, "frame_count": 4, "fps": 8, "loop": true, "order": "row-major" }
+      }
+    }
+  }
+}

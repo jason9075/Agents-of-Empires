@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "unit_kind": "archer",
+  "asset_type": "unit_bundle",
+  "style": "cute_2d_rts_sprite",
+  "pipeline": "fixed_cell_v1",
+  "pipeline_doc": "assets/sprites/PIPELINE.md",
+  "view": "topdown_3_4",
+  "anchor": "feet",
+  "frame_spec": {
+    "tier": "humanoid",
+    "frame_width": 256,
+    "frame_height": 256,
+    "anchor_x": 128,
+    "baseline_y": 220
+  },
+  "factions": {
+    "linux": {
+      "root": "assets/sprites/linux/archer",
+      "atlas": {
+        "image": "assets/sprites/linux/archer/atlas.png",
+        "mask_image": "assets/sprites/linux/archer/atlas_mask.png",
+        "width": 1024,
+        "height": 2048
+      },
+      "actions": {
+        "idle": { "atlas_rect": { "x": 0, "y": 0, "w": 512, "h": 512 }, "sheet": "assets/sprites/linux/archer/idle.png", "mask_sheet": "assets/sprites/linux/archer/idle_mask.png", "rows": 2, "cols": 2, "frame_width": 256, "frame_height": 256, "frame_count": 4, "fps": 5, "loop": true, "order": "row-major" },
+        "walk": { "atlas_rect": { "x": 0, "y": 512, "w": 1024, "h": 1024 }, "sheet": "assets/sprites/linux/archer/walk.png", "mask_sheet": "assets/sprites/linux/archer/walk_mask.png", "rows": 4, "cols": 4, "frame_width": 256, "frame_height": 256, "frame_count": 16, "fps": 9, "loop": true, "order": "row-major", "row_semantics": { "0": "down", "1": "left", "2": "right", "3": "up" } },
+        "attack": { "atlas_rect": { "x": 0, "y": 1536, "w": 512, "h": 512 }, "sheet": "assets/sprites/linux/archer/attack.png", "mask_sheet": "assets/sprites/linux/archer/attack_mask.png", "rows": 2, "cols": 2, "frame_width": 256, "frame_height": 256, "frame_count": 4, "fps": 8, "loop": true, "order": "row-major", "frames": [ { "index": 0, "label": "nock" }, { "index": 1, "label": "draw" }, { "index": 2, "label": "release" }, { "index": 3, "label": "recover" } ] }
+      }
+    },
+    "microsoft": {
+      "root": "assets/sprites/microsoft/archer",
+      "atlas": {
+        "image": "assets/sprites/microsoft/archer/atlas.png",
+        "mask_image": "assets/sprites/microsoft/archer/atlas_mask.png",
+        "width": 1024,
+        "height": 2048
+      },
+      "actions": {
+        "idle": { "atlas_rect": { "x": 0, "y": 0, "w": 512, "h": 512 }, "sheet": "assets/sprites/microsoft/archer/idle.png", "mask_sheet": "assets/sprites/microsoft/archer/idle_mask.png", "rows": 2, "cols": 2, "frame_width": 256, "frame_height": 256, "frame_count": 4, "fps": 5, "loop": true, "order": "row-major" },
+        "walk": { "atlas_rect": { "x": 0, "y": 512, "w": 1024, "h": 1024 }, "sheet": "assets/sprites/microsoft/archer/walk.png", "mask_sheet": "assets/sprites/microsoft/archer/walk_mask.png", "rows": 4, "cols": 4, "frame_width": 256, "frame_height": 256, "frame_count": 16, "fps": 9, "loop": true, "order": "row-major", "row_semantics": { "0": "down", "1": "left", "2": "right", "3": "up" } },
+        "attack": { "atlas_rect": { "x": 0, "y": 1536, "w": 512, "h": 512 }, "sheet": "assets/sprites/microsoft/archer/attack.png", "mask_sheet": "assets/sprites/microsoft/archer/attack_mask.png", "rows": 2, "cols": 2, "frame_width": 256, "frame_height": 256, "frame_count": 4, "fps": 8, "loop": true, "order": "row-major", "frames": [ { "index": 0, "label": "nock" }, { "index": 1, "label": "draw" }, { "index": 2, "label": "release" }, { "index": 3, "label": "recover" } ] }
+      }
+    }
+  }
+}

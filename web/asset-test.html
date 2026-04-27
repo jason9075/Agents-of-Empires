@@ -20,10 +20,11 @@
     .section-header {
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 0.75rem;
+      flex-wrap: wrap;
       margin: 2rem 0 1rem;
       border-bottom: 1px solid #333;
-      padding-bottom: 0.4rem;
+      padding-bottom: 0.5rem;
     }
 
     h2 {
@@ -31,9 +32,10 @@
       text-transform: uppercase;
       letter-spacing: 0.1em;
       color: #aaa;
+      margin-right: 0.25rem;
     }
 
-    .team-toggle {
+    .toggle-group {
       display: flex;
       gap: 0;
       border-radius: 6px;
@@ -41,7 +43,7 @@
       border: 1px solid #444;
     }
 
-    .team-toggle button {
+    .toggle-group button {
       background: #222;
       color: #888;
       border: none;
@@ -52,12 +54,18 @@
       transition: background 0.15s, color 0.15s;
     }
 
-    .team-toggle button.active {
+    .toggle-group button:not(:last-child) { border-right: 1px solid #444; }
+
+    .toggle-group button.active {
       background: #3a5fa0;
       color: #fff;
     }
 
-    .team-toggle button:first-child { border-right: 1px solid #444; }
+    /* Walk direction toggle shows as a slightly different colour */
+    .dir-toggle button.active { background: #3a7050; }
+
+    /* Variant colour toggle */
+    .variant-toggle button.active { background: #5a3a80; }
 
     .grid {
       display: grid;
@@ -79,6 +87,7 @@
     .card.ok    { border-color: #2d6a2d; }
     .card.error { border-color: #8b2020; }
 
+    /* static image cards */
     .img-wrap {
       width: 96px;
       height: 96px;
@@ -97,6 +106,24 @@
       object-fit: contain;
     }
 
+    /* animated sprite canvas cards */
+    .sprite-wrap {
+      width: 160px;
+      height: 160px;
+      background: #1a2030;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .sprite-wrap canvas {
+      display: block;
+      image-rendering: pixelated;
+    }
+
     .badge {
       position: absolute;
       bottom: 4px;
@@ -110,6 +137,7 @@
     }
     .badge.missing { background: #8b2020; color: #fcc; }
     .badge.ok      { background: #2d6a2d; color: #afa; }
+    .badge.loading { background: #555; color: #ccc; }
 
     .card-name {
       font-size: 0.8rem;
@@ -131,34 +159,86 @@
     }
     .summary .ok-count  { font-weight: 700; color: #5a5; }
     .summary .err-count { font-weight: 700; color: #c55; }
+
+    /* per-card action availability chips */
+    .action-tags {
+      display: flex;
+      gap: 0.28rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .action-chip {
+      font-size: 0.55rem;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: #2a2a2a;
+      color: #555;
+      border: 1px solid transparent;
+    }
+
+    /* action is available in meta */
+    .action-chip.has { background: #1a3a1a; color: #5a9; }
+
+    /* currently selected action */
+    .action-chip.selected { border-color: #4a8adb; }
+
+    /* selected but NOT available (falling back to idle) */
+    .action-chip.selected:not(.has) { border-color: #8b6020; color: #a87; }
   </style>
 </head>
 <body>
 
 <h1>Asset Test</h1>
-<p class="subtitle">Each card shows the expected image path. Red = missing. Green = loaded.</p>
+<p class="subtitle">Each card shows the expected asset path. Red = missing. Green = loaded.</p>
 
-<!-- Units -->
+<!-- Animated Sprites -->
 <div class="section-header">
-  <h2>Units</h2>
-  <div class="team-toggle" id="units-toggle">
-    <button class="active" onclick="switchTeam('units', 1)">Linux</button>
-    <button onclick="switchTeam('units', 2)">Microsoft</button>
+  <h2>Sprites (Animated)</h2>
+  <div class="toggle-group" id="sprites-faction-toggle">
+    <button class="active" data-faction="linux"     onclick="switchSpriteFaction('linux')">Linux</button>
+    <button               data-faction="microsoft"  onclick="switchSpriteFaction('microsoft')">Microsoft</button>
+  </div>
+  <div class="toggle-group" id="sprites-action-toggle">
+    <button class="active" data-action="idle"   onclick="setSpriteAction('idle')"  >Idle</button>
+    <button               data-action="walk"   onclick="setSpriteAction('walk')"  >Walk</button>
+    <button               data-action="work"   onclick="setSpriteAction('work')"  >Work</button>
+    <button               data-action="attack" onclick="setSpriteAction('attack')">Attack</button>
+  </div>
+  <div class="toggle-group dir-toggle" id="sprites-dir-toggle" style="display:none">
+    <button data-dir="down"  onclick="setSpriteWalkDir('down')" >↓</button>
+    <button data-dir="up"    onclick="setSpriteWalkDir('up')"   >↑</button>
+    <button data-dir="left"  onclick="setSpriteWalkDir('left')" >←</button>
+    <button data-dir="right" onclick="setSpriteWalkDir('right')">→</button>
+  </div>
+  <div class="toggle-group variant-toggle" id="sprites-variant-toggle">
+    <button class="active" data-variant="blue"   onclick="setSpriteVariant('blue')"  >Blue</button>
+    <button               data-variant="red"    onclick="setSpriteVariant('red')"   >Red</button>
+    <button               data-variant="green"  onclick="setSpriteVariant('green')" >Green</button>
+    <button               data-variant="purple" onclick="setSpriteVariant('purple')">Purple</button>
   </div>
 </div>
-<div class="grid" id="units-grid"></div>
+<div class="grid" id="sprites-grid"></div>
 
 <!-- Buildings -->
 <div class="section-header">
   <h2>Buildings</h2>
-  <div class="team-toggle" id="buildings-toggle">
-    <button class="active" onclick="switchTeam('buildings', 1)">Linux</button>
-    <button onclick="switchTeam('buildings', 2)">Microsoft</button>
+  <div class="toggle-group" id="buildings-faction-toggle">
+    <button class="active" data-faction="linux"    onclick="switchBuildingFaction('linux')"    >Linux</button>
+    <button               data-faction="microsoft" onclick="switchBuildingFaction('microsoft')">Microsoft</button>
+  </div>
+  <div class="toggle-group" id="buildings-state-toggle">
+    <button class="active" data-state="idle"    onclick="switchBuildingState('idle')"   >Idle</button>
+    <button               data-state="damaged"  onclick="switchBuildingState('damaged')" >Damaged</button>
+    <button               data-state="burning"  onclick="switchBuildingState('burning')" >Burning</button>
   </div>
 </div>
 <div class="grid" id="buildings-grid"></div>
 
-<!-- Terrain (no team) -->
+<!-- Terrain -->
 <div class="section-header">
   <h2>Terrain</h2>
 </div>
@@ -166,6 +246,7 @@
 
 <p class="summary" id="summary"></p>
 
+<script src="/shared-map.js"></script>
 <script>
   const UNITS = [
     { kind: 'villager',      label: 'Villager' },
@@ -194,39 +275,227 @@
     { kind: 'deer',       label: 'Deer' },
   ];
 
-  // track total loaded per (section, team) so summary stays accurate
-  // key: "units-1", "units-2", "buildings-1", "buildings-2", "terrain"
-  const counts = {};
+  // ── Animated sprite section ────────────────────────────────────────────────
 
-  function key(section, team) {
+  const spriteImages = {};
+  const spriteMeta = {};
+
+  let spriteFaction = 'linux';
+  let spriteAction = 'idle';     // 'idle' | 'walk' | 'work'
+  let spriteWalkDir = { dq: 0, dr: 1 };  // default: down
+  let spriteVariant = 'blue';
+  let spriteRafId = null;
+
+  const spriteCards = [];  // { canvas, kind, badge, card, pathEl }
+
+  const ALL_ACTIONS = ['idle', 'walk', 'work', 'attack'];
+  const ACTION_TO_STATUS = { idle: 'IDLE', walk: 'MOVING_FAST', work: 'GATHERING', attack: 'ATTACKING' };
+  const DIR_TO_DELTA = {
+    down:  { dq: 0,  dr: 1  },
+    up:    { dq: 0,  dr: -1 },
+    left:  { dq: -1, dr: 0  },
+    right: { dq: 1,  dr: 0  },
+  };
+
+  function makeFakeUnit(kind) {
+    return {
+      kind,
+      team: spriteFaction === 'linux' ? 1 : 2,
+      status: ACTION_TO_STATUS[spriteAction] || 'IDLE',
+      position: { q: 0, r: 0 },
+      // multiply by 10 so walkRow direction detection is unambiguous
+      status_target_coord: { q: spriteWalkDir.dq * 10, r: spriteWalkDir.dr * 10 },
+    };
+  }
+
+  function makeFakeTeamData() {
+    return {
+      appearance: { faction: spriteFaction, variant: spriteVariant },
+      units: [{ team: spriteFaction === 'linux' ? 1 : 2 }],
+    };
+  }
+
+  // Draw one unit sprite into its canvas.
+  // Positions cy so the full 256-row frame fits within the canvas height.
+  function drawSpriteCanvas(canvas, kind) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const meta = spriteMeta[`${spriteFaction}/${kind}`];
+    const baselineY = meta?.frame_spec?.baseline_y ?? 220;
+    const frameH   = meta?.frame_spec?.frame_height ?? 256;
+
+    const sz = canvas.width;
+    const cx = sz / 2;
+    const cy = Math.round((baselineY / frameH) * sz);
+
+    const moveDir = spriteAction === 'walk' ? spriteWalkDir : null;
+
+    return AODMapUI.drawAnimatedUnitSprite(
+      ctx, spriteImages, spriteMeta,
+      makeFakeUnit(kind), makeFakeTeamData(),
+      cx, cy, sz, moveDir,
+    );
+  }
+
+  function buildSpriteGrid() {
+    const grid = document.getElementById('sprites-grid');
+    grid.innerHTML = '';
+    spriteCards.length = 0;
+
+    for (const unit of UNITS) {
+      const card = document.createElement('div');
+      card.className = 'card';
+
+      const wrap = document.createElement('div');
+      wrap.className = 'sprite-wrap';
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 160;
+      canvas.height = 160;
+
+      const badge = document.createElement('span');
+      badge.className = 'badge loading';
+      badge.textContent = 'Loading';
+
+      wrap.appendChild(canvas);
+      wrap.appendChild(badge);
+
+      const name = document.createElement('div');
+      name.className = 'card-name';
+      name.textContent = unit.label;
+
+      const pathEl = document.createElement('div');
+      pathEl.className = 'card-path';
+
+      const actionTags = document.createElement('div');
+      actionTags.className = 'action-tags';
+      for (const a of ALL_ACTIONS) {
+        const chip = document.createElement('span');
+        chip.className = 'action-chip';
+        chip.dataset.action = a;
+        chip.textContent = a;
+        actionTags.appendChild(chip);
+      }
+
+      card.appendChild(wrap);
+      card.appendChild(name);
+      card.appendChild(pathEl);
+      card.appendChild(actionTags);
+      grid.appendChild(card);
+
+      spriteCards.push({ canvas, kind: unit.kind, badge, card, pathEl, actionTags });
+    }
+
+    refreshSpriteBadges();
+  }
+
+  function refreshSpriteBadges() {
+    for (const { kind, badge, card, pathEl, actionTags } of spriteCards) {
+      const meta  = spriteMeta[`${spriteFaction}/${kind}`];
+      const atlas = meta ? spriteImages[meta.atlas.image] : null;
+      pathEl.textContent = `assets/sprites/${spriteFaction}/${kind}/atlas.png`;
+
+      if (atlas) {
+        card.classList.add('ok');
+        card.classList.remove('error');
+        badge.className = 'badge ok';
+        badge.textContent = 'OK';
+      } else {
+        card.classList.add('error');
+        card.classList.remove('ok');
+        badge.className = 'badge missing';
+        badge.textContent = 'Missing';
+      }
+
+      // Update action availability chips.
+      for (const chip of actionTags.querySelectorAll('.action-chip')) {
+        const a = chip.dataset.action;
+        const hasAction = !!(meta?.actions?.[a]);
+        chip.classList.toggle('has', hasAction);
+        chip.classList.toggle('selected', a === spriteAction);
+      }
+    }
+  }
+
+  function startSpriteLoop() {
+    if (spriteRafId !== null) return;
+    const step = () => {
+      spriteRafId = null;
+      for (const { canvas, kind } of spriteCards) {
+        const meta = spriteMeta[`${spriteFaction}/${kind}`];
+        if (meta && spriteImages[meta.atlas.image]) {
+          drawSpriteCanvas(canvas, kind);
+        }
+      }
+      spriteRafId = requestAnimationFrame(step);
+    };
+    spriteRafId = requestAnimationFrame(step);
+  }
+
+  // ── Sprite controls ────────────────────────────────────────────────────────
+
+  function switchSpriteFaction(faction) {
+    spriteFaction = faction;
+    document.querySelectorAll('#sprites-faction-toggle button').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.faction === faction);
+    });
+    // Sync default variant to match faction colour convention.
+    const defaultVariant = faction === 'linux' ? 'blue' : 'red';
+    setSpriteVariant(defaultVariant);
+    refreshSpriteBadges();
+  }
+
+  function setSpriteAction(action) {
+    spriteAction = action;
+    document.querySelectorAll('#sprites-action-toggle button').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.action === action);
+    });
+    // Walk direction is only meaningful for walk action.
+    document.getElementById('sprites-dir-toggle').style.display =
+      action === 'walk' ? 'flex' : 'none';
+    // Refresh per-card action chips to reflect new selection.
+    refreshSpriteBadges();
+  }
+
+  function setSpriteWalkDir(dirName) {
+    spriteWalkDir = DIR_TO_DELTA[dirName] || DIR_TO_DELTA.down;
+    document.querySelectorAll('#sprites-dir-toggle button').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.dir === dirName);
+    });
+  }
+
+  function setSpriteVariant(variant) {
+    spriteVariant = variant;
+    document.querySelectorAll('#sprites-variant-toggle button').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.variant === variant);
+    });
+  }
+
+  // Set initial walk-dir button state (down is default).
+  document.querySelector('#sprites-dir-toggle button[data-dir="down"]').classList.add('active');
+
+  // ── Static image sections (buildings + terrain) ────────────────────────────
+
+  const imgCounts = {};
+
+  function imgKey(section, team) {
     return team ? `${section}-${team}` : section;
   }
 
   function updateSummary() {
-    // Count only currently-visible sections
-    const activeTeams = { units: currentTeam.units, buildings: currentTeam.buildings };
-    let totalLoaded = 0, totalCards = 0;
-
-    for (const [section, team] of Object.entries(activeTeams)) {
-      const k = key(section, team);
-      totalLoaded += counts[k]?.loaded ?? 0;
-      totalCards  += counts[k]?.total  ?? 0;
-    }
-    // terrain always counted
-    totalLoaded += counts['terrain']?.loaded ?? 0;
-    totalCards  += counts['terrain']?.total  ?? 0;
-
+    const total = TERRAIN.length;
+    const loaded = TERRAIN.filter((t) => terrainImages[terrainCardPath(t.kind)]).length;
     document.getElementById('summary').innerHTML =
-      `<span class="ok-count">${totalLoaded} / ${totalCards}</span> assets found &nbsp;|&nbsp; ` +
-      `<span class="err-count">${totalCards - totalLoaded}</span> missing`;
+      `<span class="ok-count">${loaded} / ${total}</span> terrain assets found &nbsp;|&nbsp; ` +
+      `<span class="err-count">${total - loaded}</span> missing`;
   }
 
-  // Make a single card; path is computed at creation time and never changes.
-  function makeCard(entity, pathPrefix, section, team) {
+  function makeStaticCard(entity, pathPrefix, section, team) {
     const path = `${pathPrefix}${entity.kind}.png`;
-    const k = key(section, team);
-    counts[k] = counts[k] ?? { total: 0, loaded: 0 };
-    counts[k].total++;
+    const k = imgKey(section, team);
+    imgCounts[k] = imgCounts[k] ?? { total: 0, loaded: 0 };
+    imgCounts[k].total++;
 
     const card = document.createElement('div');
     card.className = 'card';
@@ -246,10 +515,9 @@
       card.classList.add('ok');
       badge.className = 'badge ok';
       badge.textContent = 'OK';
-      counts[k].loaded++;
+      imgCounts[k].loaded++;
       updateSummary();
     };
-
     img.onerror = () => {
       card.classList.add('error');
       updateSummary();
@@ -272,60 +540,290 @@
     return card;
   }
 
-  // Build a grid for a given section + team, store as data attribute.
-  function buildGrid(gridEl, entities, basePrefix, section, team) {
-    const frag = document.createDocumentFragment();
-    const pathPrefix =
-      section === 'units' || section === 'buildings'
-        ? `${basePrefix}${team === 1 ? 'linux' : 'microsoft'}/`
-        : `${basePrefix}team${team}/`;
-    entities.forEach(e => frag.appendChild(makeCard(e, pathPrefix, section, team)));
-    gridEl.appendChild(frag);
+  // ── Building sprite section ────────────────────────────────────────────────
+  // Sprite sheet layout: 1536×1024, 3 cols × 2 rows of 512×512 frames at 8 fps.
+
+  const BLDG_FRAME_SZ = 1024;
+  const BLDG_COLS = 2;
+  const BLDG_FPS = 4;
+  const BLDG_TOTAL_FRAMES = 4;
+  // Sprite content starts at ~52% from top of frame; shift up so building is centred in card.
+  const BLDG_OFFSET_Y_RATIO = -0.25;
+
+  const buildingImages = {};
+  let buildingFaction = 'linux';
+  let buildingState = 'idle';
+  let buildingRafId = null;
+
+  // { kind, canvas, badge, card, pathEl } for each card
+  const buildingCards = [];
+
+  function buildingCardPath(kind) {
+    return `assets/sprites/buildings/${buildingFaction}/${kind}/${buildingState}.png`;
   }
 
-  // Switch team buttons + swap visible cards.
-  const currentTeam = { units: 1, buildings: 1 };
+  function initBuildingSection() {
+    const grid = document.getElementById('buildings-grid');
+    grid.innerHTML = '';
+    buildingCards.length = 0;
 
-  // Pre-build both teams for units and buildings so switching is instant.
-  function initTeamedSection(section, entities, basePrefix) {
-    const gridEl = document.getElementById(`${section}-grid`);
+    for (const building of BUILDINGS) {
+      const card = document.createElement('div');
+      card.className = 'card';
 
-    // Wrap each team's cards in a div for easy show/hide.
-    for (const team of [1, 2]) {
-      const wrapper = document.createElement('div');
-      wrapper.id = `${section}-team${team}`;
-      wrapper.style.display = team === 1 ? 'contents' : 'none';
-      buildGrid(wrapper, entities, basePrefix, section, team);
-      gridEl.appendChild(wrapper);
+      const wrap = document.createElement('div');
+      wrap.className = 'sprite-wrap';
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 160;
+      canvas.height = 160;
+
+      const badge = document.createElement('span');
+      badge.className = 'badge loading';
+      badge.textContent = 'Loading';
+
+      wrap.appendChild(canvas);
+      wrap.appendChild(badge);
+
+      const name = document.createElement('div');
+      name.className = 'card-name';
+      name.textContent = building.label;
+
+      const pathEl = document.createElement('div');
+      pathEl.className = 'card-path';
+
+      card.appendChild(wrap);
+      card.appendChild(name);
+      card.appendChild(pathEl);
+      grid.appendChild(card);
+
+      buildingCards.push({ kind: building.kind, canvas, badge, card, pathEl });
+    }
+
+    loadBuildingImages();
+  }
+
+  function loadBuildingImages() {
+    const factions = ['linux', 'microsoft'];
+    const states = ['idle', 'damaged', 'burning'];
+    const tasks = [];
+    for (const faction of factions) {
+      for (const bld of BUILDINGS) {
+        for (const st of states) {
+          const path = `assets/sprites/buildings/${faction}/${bld.kind}/${st}.png`;
+          if (!buildingImages[path]) {
+            tasks.push(new Promise((resolve) => {
+              const img = new Image();
+              img.onload = () => { buildingImages[path] = img; resolve(); };
+              img.onerror = () => resolve();
+              img.src = path;
+            }));
+          }
+        }
+      }
+    }
+    Promise.all(tasks).then(() => {
+      refreshBuildingBadges();
+      startBuildingLoop();
+    });
+  }
+
+  function refreshBuildingBadges() {
+    for (const { kind, badge, card, pathEl } of buildingCards) {
+      const path = buildingCardPath(kind);
+      pathEl.textContent = path;
+      if (buildingImages[path]) {
+        card.classList.add('ok');
+        card.classList.remove('error');
+        badge.className = 'badge ok';
+        badge.textContent = 'OK';
+      } else {
+        card.classList.remove('ok');
+        card.classList.add('error');
+        badge.className = 'badge missing';
+        badge.textContent = 'Missing';
+      }
     }
   }
 
-  function switchTeam(section, team) {
-    if (currentTeam[section] === team) return;
-    currentTeam[section] = team;
-
-    // Update wrapper visibility.
-    document.getElementById(`${section}-team1`).style.display = team === 1 ? 'contents' : 'none';
-    document.getElementById(`${section}-team2`).style.display = team === 2 ? 'contents' : 'none';
-
-    // Update toggle button styles.
-    const toggle = document.getElementById(`${section}-toggle`);
-    toggle.querySelectorAll('button').forEach((btn, i) => {
-      btn.classList.toggle('active', i + 1 === team);
-    });
-
-    updateSummary();
+  function drawBuildingCanvas(canvas, kind) {
+    const path = buildingCardPath(kind);
+    const img = buildingImages[path];
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!img) return false;
+    const frameIdx = Math.floor((performance.now() / 1000) * BLDG_FPS) % BLDG_TOTAL_FRAMES;
+    const col = frameIdx % BLDG_COLS;
+    const row = Math.floor(frameIdx / BLDG_COLS);
+    const sz = canvas.width;
+    const offsetY = Math.round(sz * BLDG_OFFSET_Y_RATIO);
+    ctx.drawImage(img, col * BLDG_FRAME_SZ, row * BLDG_FRAME_SZ, BLDG_FRAME_SZ, BLDG_FRAME_SZ, 0, offsetY, sz, sz);
+    return true;
   }
 
-  // Init teamed sections.
-  initTeamedSection('units', UNITS, 'assets/units/');
-  initTeamedSection('buildings', BUILDINGS, 'assets/buildings/');
+  function startBuildingLoop() {
+    if (buildingRafId !== null) return;
+    const step = () => {
+      buildingRafId = null;
+      for (const { canvas, kind } of buildingCards) {
+        drawBuildingCanvas(canvas, kind);
+      }
+      buildingRafId = requestAnimationFrame(step);
+    };
+    buildingRafId = requestAnimationFrame(step);
+  }
 
-  // Init terrain (no teams). makeCard handles counting via key('terrain', null).
-  const terrainGrid = document.getElementById('terrain-grid');
-  TERRAIN.forEach(t => terrainGrid.appendChild(makeCard(t, 'assets/terrain/', 'terrain', null)));
+  function switchBuildingFaction(faction) {
+    buildingFaction = faction;
+    document.querySelectorAll('#buildings-faction-toggle button').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.faction === faction);
+    });
+    refreshBuildingBadges();
+  }
 
-  updateSummary();
+  function switchBuildingState(state) {
+    buildingState = state;
+    document.querySelectorAll('#buildings-state-toggle button').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.state === state);
+    });
+    refreshBuildingBadges();
+  }
+
+  // ── Terrain sprite section ─────────────────────────────────────────────────
+
+  const TERRAIN_FRAME_SZ = 1024;
+  const TERRAIN_COLS = 2;
+  const TERRAIN_FPS = 4;
+  const TERRAIN_TOTAL_FRAMES = 4;
+  // Content starts at ~21% from top of frame; small shift up to centre.
+  const TERRAIN_OFFSET_Y_RATIO = -0.10;
+
+  const terrainImages = {};
+  let terrainRafId = null;
+  const terrainCards = [];
+
+  function terrainCardPath(kind) {
+    return `assets/sprites/terrain/${kind}/atlas.png`;
+  }
+
+  function initTerrainSection() {
+    const grid = document.getElementById('terrain-grid');
+    grid.innerHTML = '';
+    terrainCards.length = 0;
+
+    for (const terrain of TERRAIN) {
+      const card = document.createElement('div');
+      card.className = 'card';
+
+      const wrap = document.createElement('div');
+      wrap.className = 'sprite-wrap';
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 160;
+      canvas.height = 160;
+
+      const badge = document.createElement('span');
+      badge.className = 'badge loading';
+      badge.textContent = 'Loading';
+
+      wrap.appendChild(canvas);
+      wrap.appendChild(badge);
+
+      const name = document.createElement('div');
+      name.className = 'card-name';
+      name.textContent = terrain.label;
+
+      const pathEl = document.createElement('div');
+      pathEl.className = 'card-path';
+
+      card.appendChild(wrap);
+      card.appendChild(name);
+      card.appendChild(pathEl);
+      grid.appendChild(card);
+
+      terrainCards.push({ kind: terrain.kind, canvas, badge, card, pathEl });
+    }
+
+    loadTerrainImages();
+  }
+
+  function loadTerrainImages() {
+    const tasks = TERRAIN.map((t) => {
+      const path = terrainCardPath(t.kind);
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { terrainImages[path] = img; resolve(); };
+        img.onerror = () => resolve();
+        img.src = path;
+      });
+    });
+    Promise.all(tasks).then(() => {
+      refreshTerrainBadges();
+      startTerrainLoop();
+      updateSummary();
+    });
+  }
+
+  function refreshTerrainBadges() {
+    for (const { kind, badge, card, pathEl } of terrainCards) {
+      const path = terrainCardPath(kind);
+      pathEl.textContent = path;
+      if (terrainImages[path]) {
+        card.classList.add('ok');
+        card.classList.remove('error');
+        badge.className = 'badge ok';
+        badge.textContent = 'OK';
+      } else {
+        card.classList.remove('ok');
+        card.classList.add('error');
+        badge.className = 'badge missing';
+        badge.textContent = 'Missing';
+      }
+    }
+  }
+
+  function drawTerrainCanvas(canvas, kind) {
+    const path = terrainCardPath(kind);
+    const img = terrainImages[path];
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!img) return false;
+    const frameIdx = Math.floor((performance.now() / 1000) * TERRAIN_FPS) % TERRAIN_TOTAL_FRAMES;
+    const col = frameIdx % TERRAIN_COLS;
+    const row = Math.floor(frameIdx / TERRAIN_COLS);
+    const sz = canvas.width;
+    const offsetY = Math.round(sz * TERRAIN_OFFSET_Y_RATIO);
+    ctx.drawImage(img, col * TERRAIN_FRAME_SZ, row * TERRAIN_FRAME_SZ, TERRAIN_FRAME_SZ, TERRAIN_FRAME_SZ, 0, offsetY, sz, sz);
+    return true;
+  }
+
+  function startTerrainLoop() {
+    if (terrainRafId !== null) return;
+    const step = () => {
+      terrainRafId = null;
+      for (const { canvas, kind } of terrainCards) {
+        drawTerrainCanvas(canvas, kind);
+      }
+      terrainRafId = requestAnimationFrame(step);
+    };
+    terrainRafId = requestAnimationFrame(step);
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+
+  initBuildingSection();
+  initTerrainSection();
+
+  // Build sprite grid then load all atlas assets.
+  buildSpriteGrid();
+  AODMapUI.preloadAssets(spriteImages, {
+    unitKinds: UNITS.map((u) => u.kind),
+    unitFactions: ['linux', 'microsoft'],
+    spriteMeta,
+  }).then(() => {
+    refreshSpriteBadges();
+    startSpriteLoop();
+  });
 </script>
 </body>
 </html>

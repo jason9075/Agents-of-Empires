@@ -1,0 +1,19 @@
+{
+  "frame_width": 1024,
+  "frame_height": 1024,
+  "states": ["idle", "damaged", "burning"],
+  "factions": {
+    "linux": {
+      "town_center": "linux/town_center/atlas.meta.json",
+      "barracks": "linux/barracks/atlas.meta.json",
+      "stable": "linux/stable/atlas.meta.json",
+      "archery_range": "linux/archery_range/atlas.meta.json"
+    },
+    "microsoft": {
+      "town_center": "microsoft/town_center/atlas.meta.json",
+      "barracks": "microsoft/barracks/atlas.meta.json",
+      "stable": "microsoft/stable/atlas.meta.json",
+      "archery_range": "microsoft/archery_range/atlas.meta.json"
+    }
+  }
+}

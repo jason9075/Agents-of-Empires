@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "unit_kind": "villager",
-  "faction": "linux",
+  "unit_kind": "infantry",
+  "faction": "microsoft",
   "pipeline": "fixed_cell_v1",
   "pipeline_doc": "assets/sprites/PIPELINE.md",
   "frame_spec": {
@@ -12,8 +12,8 @@
     "baseline_y": 220
   },
   "atlas": {
-    "image": "assets/sprites/linux/villager/atlas.png",
-    "mask_image": "assets/sprites/linux/villager/atlas_mask.png",
+    "image": "assets/sprites/microsoft/infantry/atlas.png",
+    "mask_image": "assets/sprites/microsoft/infantry/atlas_mask.png",
     "width": 1024,
     "height": 2048
   },
@@ -48,17 +48,16 @@
         "3": "up"
       }
     },
-    "work": {
-      "rect": { "x": 0, "y": 1536, "w": 768, "h": 512 },
+    "attack": {
+      "rect": { "x": 0, "y": 1536, "w": 512, "h": 512 },
       "rows": 2,
-      "cols": 3,
+      "cols": 2,
       "frame_width": 256,
       "frame_height": 256,
-      "frame_count": 6,
+      "frame_count": 4,
       "fps": 8,
       "loop": true,
-      "order": "row-major",
-      "aliases": ["gather", "build"]
+      "order": "row-major"
     }
   }
 }

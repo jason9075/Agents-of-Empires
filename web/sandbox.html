@@ -711,7 +711,7 @@
 
     <div id="tooltip"></div>
 
-    <script src="/shared-map.js"></script>
+    <script src="/shared-map.js?v=3"></script>
     <script>
       const HEX_SIZE = 42
       const SQRT3 = Math.sqrt(3)
@@ -782,6 +782,22 @@
       }
 
       const images = {}
+      const spriteMeta = {} // '{faction}/{kind}' → atlas.meta.json content
+
+      let sandboxAnimFrameId = null
+
+      function startSandboxAnimLoop() {
+        if (sandboxAnimFrameId !== null) return
+        const step = () => {
+          sandboxAnimFrameId = null
+          const snap = snapshots[currentTick]
+          if (snap && (snap.team1?.units?.length || 0) + (snap.team2?.units?.length || 0) > 0) {
+            drawMap(snap)
+            sandboxAnimFrameId = requestAnimationFrame(step)
+          }
+        }
+        sandboxAnimFrameId = requestAnimationFrame(step)
+      }
 
       let rowCounter = 0
       let presetList = []
@@ -1511,14 +1527,13 @@
           ctx.fillStyle = TERRAIN_COLOR[tile.terrain] || '#3b4a53'
           ctx.fill()
 
-          const img = images[`assets/terrain/${tile.terrain}.png`]
-          if (img) {
+          {
+            const iw = HEX_SIZE * SQRT3
+            const ih = HEX_SIZE * 2
             ctx.save()
             hexPath(ctx, cx, cy)
             ctx.clip()
-            const iw = HEX_SIZE * SQRT3
-            const ih = HEX_SIZE * 2
-            ctx.drawImage(img, cx - iw / 2, cy - ih / 2, iw, ih)
+            AODMapUI.drawTerrainSprite(ctx, images, tile.terrain, cx, cy, iw, ih)
             ctx.restore()
           }
 
@@ -1538,7 +1553,7 @@
             ctx.globalAlpha = 0.6
           }
           const drewBldg = AODMapUI.drawVariantBuildingSprite(
-            ctx, images, building, teamDataForBuilding(snapshot, building), cx, cy, HEX_SIZE * 1.5,
+            ctx, images, building, teamDataForBuilding(snapshot, building), cx, cy, HEX_SIZE * 3,
           )
           if (!drewBldg) {
             const size = HEX_SIZE * 0.95
@@ -1564,9 +1579,10 @@
           const cx = x + PAD
           const cy = y + PAD
           const size = HEX_SIZE * 1.4
-          const drewSprite = AODMapUI.drawVariantUnitSprite(
+          const drewSprite = AODMapUI.drawAnimatedUnitSprite(
             ctx,
             images,
+            spriteMeta,
             unit,
             teamDataForUnit(snapshot, unit),
             cx,
@@ -1611,6 +1627,7 @@
         renderSnapshotSummary(snapshot)
         renderDetails(snapshot)
         drawMap(snapshot)
+        startSandboxAnimLoop()
       }
 
       function clearDragState() {
@@ -1734,6 +1751,7 @@
             buildingKinds: ALL_BLDG_KINDS,
             unitFactions: ['linux', 'microsoft'],
             buildingFactions: ['linux', 'microsoft'],
+            spriteMeta,
           })
           presetList = await fetchPresets()
           const select = document.getElementById('preset-select')

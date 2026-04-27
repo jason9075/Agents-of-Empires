@@ -1,33 +1,42 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "unit_kind": "villager",
   "faction": "microsoft",
+  "pipeline": "fixed_cell_v1",
+  "pipeline_doc": "assets/sprites/PIPELINE.md",
+  "frame_spec": {
+    "tier": "humanoid",
+    "frame_width": 256,
+    "frame_height": 256,
+    "anchor_x": 128,
+    "baseline_y": 220
+  },
   "atlas": {
     "image": "assets/sprites/microsoft/villager/atlas.png",
     "mask_image": "assets/sprites/microsoft/villager/atlas_mask.png",
-    "width": 1536,
-    "height": 3536
+    "width": 1024,
+    "height": 2048
   },
   "anchor": "feet",
   "view": "topdown_3_4",
   "actions": {
     "idle": {
-      "rect": { "x": 0, "y": 0, "w": 1256, "h": 1256 },
+      "rect": { "x": 0, "y": 0, "w": 512, "h": 512 },
       "rows": 2,
       "cols": 2,
-      "frame_width": 628,
-      "frame_height": 628,
+      "frame_width": 256,
+      "frame_height": 256,
       "frame_count": 4,
       "fps": 5,
       "loop": true,
       "order": "row-major"
     },
     "walk": {
-      "rect": { "x": 0, "y": 1256, "w": 1256, "h": 1256 },
+      "rect": { "x": 0, "y": 512, "w": 1024, "h": 1024 },
       "rows": 4,
       "cols": 4,
-      "frame_width": 314,
-      "frame_height": 314,
+      "frame_width": 256,
+      "frame_height": 256,
       "frame_count": 16,
       "fps": 9,
       "loop": true,
@@ -40,11 +49,11 @@
       }
     },
     "work": {
-      "rect": { "x": 0, "y": 2512, "w": 1536, "h": 1024 },
+      "rect": { "x": 0, "y": 1536, "w": 768, "h": 512 },
       "rows": 2,
       "cols": 3,
-      "frame_width": 512,
-      "frame_height": 512,
+      "frame_width": 256,
+      "frame_height": 256,
       "frame_count": 6,
       "fps": 8,
       "loop": true,

@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "unit_kind": "villager",
+  "unit_kind": "infantry",
   "asset_type": "unit_bundle",
   "style": "cute_2d_rts_sprite",
   "pipeline": "fixed_cell_v1",
@@ -15,25 +15,25 @@
     "baseline_y": 220
   },
   "notes": [
-    "Villager now uses the fixed-cell pipeline.",
+    "Infantry uses the fixed-cell pipeline.",
     "All actions normalize into 256x256 cells before sheet composition.",
     "Tint only the matching mask image, then composite the tinted mask above the base sheet or atlas.",
     "Cyan (#00e5ff) in the authored art marks tintable cloth or trim regions."
   ],
   "factions": {
     "linux": {
-      "root": "assets/sprites/linux/villager",
+      "root": "assets/sprites/linux/infantry",
       "atlas": {
-        "image": "assets/sprites/linux/villager/atlas.png",
-        "mask_image": "assets/sprites/linux/villager/atlas_mask.png",
+        "image": "assets/sprites/linux/infantry/atlas.png",
+        "mask_image": "assets/sprites/linux/infantry/atlas_mask.png",
         "width": 1024,
         "height": 2048
       },
       "actions": {
         "idle": {
           "atlas_rect": { "x": 0, "y": 0, "w": 512, "h": 512 },
-          "sheet": "assets/sprites/linux/villager/idle.png",
-          "mask_sheet": "assets/sprites/linux/villager/idle_mask.png",
+          "sheet": "assets/sprites/linux/infantry/idle.png",
+          "mask_sheet": "assets/sprites/linux/infantry/idle_mask.png",
           "rows": 2,
           "cols": 2,
           "frame_width": 256,
@@ -45,8 +45,8 @@
         },
         "walk": {
           "atlas_rect": { "x": 0, "y": 512, "w": 1024, "h": 1024 },
-          "sheet": "assets/sprites/linux/villager/walk.png",
-          "mask_sheet": "assets/sprites/linux/villager/walk_mask.png",
+          "sheet": "assets/sprites/linux/infantry/walk.png",
+          "mask_sheet": "assets/sprites/linux/infantry/walk_mask.png",
           "rows": 4,
           "cols": 4,
           "frame_width": 256,
@@ -68,35 +68,40 @@
             "3": "step_b"
           }
         },
-        "work": {
-          "atlas_rect": { "x": 0, "y": 1536, "w": 768, "h": 512 },
-          "sheet": "assets/sprites/linux/villager/work.png",
-          "mask_sheet": "assets/sprites/linux/villager/work_mask.png",
+        "attack": {
+          "atlas_rect": { "x": 0, "y": 1536, "w": 512, "h": 512 },
+          "sheet": "assets/sprites/linux/infantry/attack.png",
+          "mask_sheet": "assets/sprites/linux/infantry/attack_mask.png",
           "rows": 2,
-          "cols": 3,
+          "cols": 2,
           "frame_width": 256,
           "frame_height": 256,
-          "frame_count": 6,
+          "frame_count": 4,
           "fps": 8,
           "loop": true,
           "order": "row-major",
-          "aliases": ["gather", "build"]
+          "frames": [
+            { "index": 0, "label": "windup" },
+            { "index": 1, "label": "strike" },
+            { "index": 2, "label": "follow_through" },
+            { "index": 3, "label": "recovery" }
+          ]
         }
       }
     },
     "microsoft": {
-      "root": "assets/sprites/microsoft/villager",
+      "root": "assets/sprites/microsoft/infantry",
       "atlas": {
-        "image": "assets/sprites/microsoft/villager/atlas.png",
-        "mask_image": "assets/sprites/microsoft/villager/atlas_mask.png",
+        "image": "assets/sprites/microsoft/infantry/atlas.png",
+        "mask_image": "assets/sprites/microsoft/infantry/atlas_mask.png",
         "width": 1024,
         "height": 2048
       },
       "actions": {
         "idle": {
           "atlas_rect": { "x": 0, "y": 0, "w": 512, "h": 512 },
-          "sheet": "assets/sprites/microsoft/villager/idle.png",
-          "mask_sheet": "assets/sprites/microsoft/villager/idle_mask.png",
+          "sheet": "assets/sprites/microsoft/infantry/idle.png",
+          "mask_sheet": "assets/sprites/microsoft/infantry/idle_mask.png",
           "rows": 2,
           "cols": 2,
           "frame_width": 256,
@@ -108,8 +113,8 @@
         },
         "walk": {
           "atlas_rect": { "x": 0, "y": 512, "w": 1024, "h": 1024 },
-          "sheet": "assets/sprites/microsoft/villager/walk.png",
-          "mask_sheet": "assets/sprites/microsoft/villager/walk_mask.png",
+          "sheet": "assets/sprites/microsoft/infantry/walk.png",
+          "mask_sheet": "assets/sprites/microsoft/infantry/walk_mask.png",
           "rows": 4,
           "cols": 4,
           "frame_width": 256,
@@ -131,19 +136,24 @@
             "3": "step_b"
           }
         },
-        "work": {
-          "atlas_rect": { "x": 0, "y": 1536, "w": 768, "h": 512 },
-          "sheet": "assets/sprites/microsoft/villager/work.png",
-          "mask_sheet": "assets/sprites/microsoft/villager/work_mask.png",
+        "attack": {
+          "atlas_rect": { "x": 0, "y": 1536, "w": 512, "h": 512 },
+          "sheet": "assets/sprites/microsoft/infantry/attack.png",
+          "mask_sheet": "assets/sprites/microsoft/infantry/attack_mask.png",
           "rows": 2,
-          "cols": 3,
+          "cols": 2,
           "frame_width": 256,
           "frame_height": 256,
-          "frame_count": 6,
+          "frame_count": 4,
           "fps": 8,
           "loop": true,
           "order": "row-major",
-          "aliases": ["gather", "build"]
+          "frames": [
+            { "index": 0, "label": "windup" },
+            { "index": 1, "label": "strike" },
+            { "index": 2, "label": "follow_through" },
+            { "index": 3, "label": "recovery" }
+          ]
         }
       }
     }

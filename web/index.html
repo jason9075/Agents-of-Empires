@@ -554,7 +554,7 @@
 
     <div id="tooltip"></div>
 
-    <script src="/shared-map.js"></script>
+    <script src="/shared-map.js?v=3"></script>
     <script>
       // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -668,10 +668,13 @@
       // ── Image cache ────────────────────────────────────────────────────────────
 
       const images = {} // path → HTMLImageElement (only populated on success)
+      const spriteMeta = {} // '{faction}/{kind}' → atlas.meta.json content
 
       // ── State ──────────────────────────────────────────────────────────────────
 
       let mapData = null
+      let terrainCache = null
+      let terrainCacheKey = null
       let gameState = null
       let tileMap = {} // "q,r" → tile
       let entityMap = {} // "q,r" → [{type, data}]
@@ -693,6 +696,7 @@
       async function fetchState() {
         const [mapRes, stateRes] = await Promise.all([fetch('/map'), fetch('/state/full')])
         mapData = await mapRes.json()
+        terrainCacheKey = null
         tileMap = AODMapUI.buildTileMap(mapData)
 
         const prevUnitsByID = buildUnitMap(gameState)
@@ -700,9 +704,7 @@
         syncUnitAnimations(prevUnitsByID, gameState)
         entityMap = AODMapUI.buildEntityMap(gameState)
         contestedMap = AODMapUI.buildContestedMap(gameState)
-        if (hasActiveBattleEffects(gameState)) {
-          startAnimationLoop()
-        }
+        startAnimationLoop()
       }
 
       function buildUnitMap(state) {
@@ -761,6 +763,24 @@
         ctx.scale(-1, 1)
         ctx.drawImage(img, -size / 2, -size / 2, size, size)
         ctx.restore()
+      }
+
+      // Returns { dq, dr } of the current animation step, or null.
+      // Used to pick the correct walk direction row in the sprite atlas.
+      function getUnitMoveDir(unit) {
+        const anim = unitAnimations[String(unit.id)]
+        if (!anim) return null
+        return { dq: anim.to.q - anim.from.q, dr: anim.to.r - anim.from.r }
+      }
+
+      function hasUnitsOnMap(state) {
+        if (!state) return false
+        return (state.team1.units?.length || 0) + (state.team2.units?.length || 0) > 0
+      }
+
+      function hasBuildingsOnMap(state) {
+        if (!state) return false
+        return (state.team1.buildings?.length || 0) + (state.team2.buildings?.length || 0) > 0
       }
 
       function teamDataForUnit(state, unit) {
@@ -897,7 +917,9 @@
 
           if (
             Object.keys(unitAnimations).length > 0 ||
-            hasActiveBattleEffects(gameState)
+            hasActiveBattleEffects(gameState) ||
+            hasUnitsOnMap(gameState) ||
+            hasBuildingsOnMap(gameState)
           ) {
             animationFrameId = requestAnimationFrame(step)
           }
@@ -907,6 +929,48 @@
       }
 
       // ── Draw ───────────────────────────────────────────────────────────────────
+
+      function drawTerrainLayer(logicalW, logicalH) {
+        const terrainFrameIdx = Math.floor((performance.now() / 1000) * 4) % 4
+        const cacheKey = `${logicalW},${logicalH},${terrainFrameIdx}`
+        if (terrainCache && terrainCacheKey === cacheKey) return terrainCache
+
+        if (!terrainCache) terrainCache = document.createElement('canvas')
+        terrainCache.width = logicalW
+        terrainCache.height = logicalH
+        const tCtx = terrainCache.getContext('2d')
+        tCtx.clearRect(0, 0, logicalW, logicalH)
+
+        for (const tile of mapData.tiles) {
+          const { x, y } = hexToPixel(tile.coord.q, tile.coord.r)
+          const cx = x + PAD,
+            cy = y + PAD
+
+          hexPath(tCtx, cx, cy)
+          tCtx.fillStyle = TERRAIN_COLOR[tile.terrain] || '#444'
+          tCtx.fill()
+
+          {
+            const iw = HEX_SIZE * SQRT3
+            const ih = HEX_SIZE * 2
+            tCtx.save()
+            hexPath(tCtx, cx, cy)
+            tCtx.clip()
+            AODMapUI.drawTerrainSprite(tCtx, images, tile.terrain, cx, cy, iw, ih)
+            tCtx.restore()
+          }
+
+          hexPath(tCtx, cx, cy)
+          tCtx.strokeStyle = 'rgba(0,0,0,0.3)'
+          tCtx.lineWidth = 0.5
+          tCtx.stroke()
+
+          AODMapUI.drawResourceRemaining(tCtx, cx, cy, tile)
+        }
+
+        terrainCacheKey = cacheKey
+        return terrainCache
+      }
 
       function drawMap() {
         if (!mapData) return
@@ -921,9 +985,13 @@
         const logicalW = Math.ceil(HEX_SIZE * SQRT3 * (mapWidth + 0.5)) + PAD * 2
         const logicalH = Math.ceil(HEX_SIZE * (1.5 * (mapHeight - 1) + 2)) + PAD * 2
 
-        // Physical canvas pixels = logical × zoom.
-        canvas.width = Math.ceil(logicalW * zoomScale)
-        canvas.height = Math.ceil(logicalH * zoomScale)
+        // Physical canvas pixels = logical × zoom. Guard resize to avoid GPU context reset.
+        const physW = Math.ceil(logicalW * zoomScale)
+        const physH = Math.ceil(logicalH * zoomScale)
+        if (canvas.width !== physW || canvas.height !== physH) {
+          canvas.width = physW
+          canvas.height = physH
+        }
 
         ctx.clearRect(0, 0, canvas.width, canvas.height)
         ctx.save()
@@ -931,37 +999,8 @@
         ctx.imageSmoothingEnabled = true
         ctx.imageSmoothingQuality = 'high'
 
-        // ── 1. Terrain ──
-        for (const tile of mapData.tiles) {
-          const { x, y } = hexToPixel(tile.coord.q, tile.coord.r)
-          const cx = x + PAD,
-            cy = y + PAD
-
-          // Fill with fallback colour first (always visible even if image missing).
-          hexPath(ctx, cx, cy)
-          ctx.fillStyle = TERRAIN_COLOR[tile.terrain] || '#444'
-          ctx.fill()
-
-          // Overlay PNG image if loaded, clipped to hex shape.
-          const img = images[`assets/terrain/${tile.terrain}.png`]
-          if (img) {
-            ctx.save()
-            hexPath(ctx, cx, cy)
-            ctx.clip()
-            const iw = HEX_SIZE * SQRT3
-            const ih = HEX_SIZE * 2
-            ctx.drawImage(img, cx - iw / 2, cy - ih / 2, iw, ih)
-            ctx.restore()
-          }
-
-          // Grid line.
-          hexPath(ctx, cx, cy)
-          ctx.strokeStyle = 'rgba(0,0,0,0.3)'
-          ctx.lineWidth = 0.5
-          ctx.stroke()
-
-          AODMapUI.drawResourceRemaining(ctx, cx, cy, tile)
-        }
+        // ── 1. Terrain (cached offscreen, invalidated at 4fps) ──
+        ctx.drawImage(drawTerrainLayer(logicalW, logicalH), 0, 0)
 
         if (!gameState) {
           ctx.restore()
@@ -981,7 +1020,7 @@
             ctx.globalAlpha = 0.58
           }
           const drewBldg = AODMapUI.drawVariantBuildingSprite(
-            ctx, images, b, teamDataForBuilding(gameState, b), cx, cy, HEX_SIZE * 1.5,
+            ctx, images, b, teamDataForBuilding(gameState, b), cx, cy, HEX_SIZE * 3,
           )
           if (!drewBldg) {
             // Fallback: coloured square + abbreviation.
@@ -1015,15 +1054,16 @@
           const cx = x + PAD,
             cy = y + PAD
           const s = HEX_SIZE * 1.4
-          const drewSprite = AODMapUI.drawVariantUnitSprite(
+          const drewSprite = AODMapUI.drawAnimatedUnitSprite(
             ctx,
             images,
+            spriteMeta,
             u,
             teamDataForUnit(gameState, u),
             cx,
             cy,
             s,
-            u.team === HORIZONTALLY_FLIPPED_TEAM,
+            getUnitMoveDir(u),
           )
 
           if (!drewSprite) {
@@ -1251,7 +1291,9 @@
         buildingKinds: ALL_BLDG_KINDS,
         unitFactions: ['linux', 'microsoft'],
         buildingFactions: ['linux', 'microsoft'],
+        spriteMeta,
       }).then(() => {
+        terrainCacheKey = null
         if (mapData) drawMap()
       })
       fetchAndDraw()

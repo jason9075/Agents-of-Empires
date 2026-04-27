@@ -1,0 +1,18 @@
+{
+  "frame_width": 1024,
+  "frame_height": 1024,
+  "rows": 2,
+  "cols": 2,
+  "frame_count": 4,
+  "fps": 4,
+  "terrains": {
+    "plain": "plain/atlas.meta.json",
+    "lake": "lake/atlas.meta.json",
+    "forest": "forest/atlas.meta.json",
+    "orchard": "orchard/atlas.meta.json",
+    "gold_mine": "gold_mine/atlas.meta.json",
+    "stone_mine": "stone_mine/atlas.meta.json",
+    "mountain": "mountain/atlas.meta.json",
+    "deer": "deer/atlas.meta.json"
+  }
+}
