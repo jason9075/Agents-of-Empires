@@ -156,6 +156,44 @@
         text-align: right;
       }
 
+      /* ── View mode selector ── */
+      .view-mode-group {
+        display: flex;
+        gap: 0;
+        border: 1px solid #444;
+        border-radius: 6px;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+
+      .view-mode-btn {
+        background: #1b1b1b;
+        border: none;
+        border-right: 1px solid #444;
+        color: #aaa;
+        padding: 0 0.7rem;
+        height: 28px;
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .view-mode-btn:last-child {
+        border-right: none;
+      }
+
+      .view-mode-btn:hover {
+        background: #282828;
+        color: #fff;
+      }
+
+      .view-mode-btn.active {
+        background: #4a90e2;
+        color: #fff;
+        font-weight: 700;
+      }
+
       /* ── Main layout ── */
       #main {
         display: flex;
@@ -440,6 +478,11 @@
       <a class="top-link" href="/sandbox.html">Sandbox</a>
       <div class="tick-badge">⏱ Tick <span id="tick-num">—</span></div>
       <div class="dot" id="live-dot" title="Live"></div>
+      <div class="view-mode-group">
+        <button class="view-mode-btn" id="vm-god" onclick="setViewMode('god')">God View</button>
+        <button class="view-mode-btn" id="vm-player1" onclick="setViewMode('player1')">Player 1</button>
+        <button class="view-mode-btn" id="vm-player2" onclick="setViewMode('player2')">Player 2</button>
+      </div>
       <div class="zoom-controls">
         <button onclick="adjustZoom(-0.25)" title="Zoom out">−</button>
         <input
@@ -681,6 +724,9 @@
       let contestedMap = {} // "q,r" -> contested hex summary
       let sidebarVisible = true
       let unitAnimations = {} // unit id → animation state
+
+      const VIEW_MODE_KEY = 'aoe_view_mode'
+      let viewMode = localStorage.getItem(VIEW_MODE_KEY) || 'god'
       let animationFrameId = null
 
       const UNIT_MOVE_ANIMATION_MS = 700
@@ -694,17 +740,64 @@
       }
 
       async function fetchState() {
-        const [mapRes, stateRes] = await Promise.all([fetch('/map'), fetch('/state/full')])
+        const stateUrl = viewMode === 'god' ? '/state/full' : '/state'
+        const stateOpts =
+          viewMode === 'god'
+            ? {}
+            : { headers: { 'X-Team-ID': viewMode === 'player1' ? '1' : '2' } }
+
+        const [mapRes, stateRes] = await Promise.all([
+          fetch('/map'),
+          fetch(stateUrl, stateOpts),
+        ])
         mapData = await mapRes.json()
         terrainCacheKey = null
         tileMap = AODMapUI.buildTileMap(mapData)
 
         const prevUnitsByID = buildUnitMap(gameState)
-        gameState = await stateRes.json()
+        const raw = await stateRes.json()
+        gameState =
+          viewMode === 'god' ? raw : normalizePlayerState(raw, viewMode === 'player1' ? 1 : 2)
         syncUnitAnimations(prevUnitsByID, gameState)
         entityMap = AODMapUI.buildEntityMap(gameState)
         contestedMap = AODMapUI.buildContestedMap(gameState)
         startAnimationLoop()
+      }
+
+      function normalizePlayerState(raw, playerTeam) {
+        const enemyTeam = playerTeam === 1 ? 2 : 1
+        const unknownRes = { food: '?', gold: '?', stone: '?', wood: '?' }
+        return {
+          game_over: raw.game_over,
+          winner: raw.winner,
+          tick: raw.tick,
+          last_tick_contested_hexes: raw.last_tick_contested_hexes || [],
+          [`team${playerTeam}`]: {
+            appearance: {},
+            resources: raw.resources || unknownRes,
+            population: raw.population || {},
+            last_tick_failed_commands: raw.last_tick_failed_commands || [],
+            units: (raw.units || []).filter((u) => u.team === playerTeam),
+            buildings: (raw.buildings || []).filter((b) => b.team === playerTeam),
+          },
+          [`team${enemyTeam}`]: {
+            appearance: {},
+            resources: unknownRes,
+            population: {},
+            last_tick_failed_commands: [],
+            units: (raw.units || []).filter((u) => u.team === enemyTeam),
+            buildings: (raw.buildings || []).filter((b) => b.team === enemyTeam),
+          },
+        }
+      }
+
+      function setViewMode(mode) {
+        viewMode = mode
+        localStorage.setItem(VIEW_MODE_KEY, mode)
+        document.querySelectorAll('.view-mode-btn').forEach((btn) => {
+          btn.classList.toggle('active', btn.id === `vm-${mode}`)
+        })
+        fetchAndDraw()
       }
 
       function buildUnitMap(state) {
@@ -1282,6 +1375,9 @@
       document.getElementById('zoom-slider').value = zoomScale
       document.getElementById('zoom-label').textContent =
         Math.round(zoomScale * 100) + '%'
+
+      // Initialise view mode button from restored preference.
+      document.getElementById(`vm-${viewMode}`)?.classList.add('active')
 
       // Preload assets and kick off the first fetch in parallel.
       // Re-draw after assets finish in case the first draw used fallbacks.
