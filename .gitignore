@@ -24,3 +24,5 @@ result-*
 web/assets/**/*.png
 
 tmp/
+
+.codex
