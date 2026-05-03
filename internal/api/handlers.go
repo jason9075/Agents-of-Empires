@@ -104,6 +104,11 @@ type populationView struct {
 	Cap      int `json:"cap"`
 }
 
+type teamAppearanceView struct {
+	Faction string `json:"faction"`
+	Variant string `json:"variant"`
+}
+
 type stateResponse struct {
 	GameOver               bool                `json:"game_over"`
 	Winner                 string              `json:"winner,omitempty"`
@@ -235,6 +240,7 @@ func (h *stateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // --- Full state handler (god-mode, no LOS masking) ---
 
 type fullStateTeam struct {
+	Appearance             teamAppearanceView  `json:"appearance"`
 	Resources              world.Resources     `json:"resources"`
 	Population             populationView      `json:"population"`
 	LastTickFailedCommands []failedCommandView `json:"last_tick_failed_commands"`
@@ -291,6 +297,7 @@ func (h *fullStateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 		return fullStateTeam{
+			Appearance:             toTeamAppearanceView(h.w.GetTeamAppearance(team)),
 			Resources:              h.w.GetResources(team),
 			Population:             toPopulationView(h.w.GetPopulationSummary(team)),
 			LastTickFailedCommands: toFailedCommandViews(h.w.GetLastTickCommandFailures(team)),
@@ -310,6 +317,46 @@ func (h *fullStateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func toTeamAppearanceView(appearance world.TeamAppearance) teamAppearanceView {
+	return teamAppearanceView{
+		Faction: appearance.Faction,
+		Variant: appearance.Variant,
+	}
+}
+
+// --- Team appearance handler (PUT /config/teams/{team}/appearance) ---
+
+type teamAppearanceHandler struct {
+	w *world.World
+}
+
+func (h *teamAppearanceHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+		return
+	}
+
+	var team entity.Team
+	switch r.PathValue("team") {
+	case "1":
+		team = entity.Team1
+	case "2":
+		team = entity.Team2
+	default:
+		writeError(w, http.StatusBadRequest, "unknown_team", "team must be 1 or 2")
+		return
+	}
+
+	var body teamAppearanceView
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", "invalid JSON body")
+		return
+	}
+
+	h.w.SetTeamAppearance(team, world.TeamAppearance{Faction: body.Faction, Variant: body.Variant})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // --- Pending commands handler ---

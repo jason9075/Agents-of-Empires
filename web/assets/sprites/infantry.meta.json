@@ -1,0 +1,161 @@
+{
+  "schema_version": 2,
+  "unit_kind": "infantry",
+  "asset_type": "unit_bundle",
+  "style": "cute_2d_rts_sprite",
+  "pipeline": "fixed_cell_v1",
+  "pipeline_doc": "assets/sprites/PIPELINE.md",
+  "view": "topdown_3_4",
+  "anchor": "feet",
+  "frame_spec": {
+    "tier": "humanoid",
+    "frame_width": 256,
+    "frame_height": 256,
+    "anchor_x": 128,
+    "baseline_y": 220
+  },
+  "notes": [
+    "Infantry uses the fixed-cell pipeline.",
+    "All actions normalize into 256x256 cells before sheet composition.",
+    "Tint only the matching mask image, then composite the tinted mask above the base sheet or atlas.",
+    "Cyan (#00e5ff) in the authored art marks tintable cloth or trim regions."
+  ],
+  "factions": {
+    "linux": {
+      "root": "assets/sprites/linux/infantry",
+      "atlas": {
+        "image": "assets/sprites/linux/infantry/atlas.png",
+        "mask_image": "assets/sprites/linux/infantry/atlas_mask.png",
+        "width": 1024,
+        "height": 2048
+      },
+      "actions": {
+        "idle": {
+          "atlas_rect": { "x": 0, "y": 0, "w": 512, "h": 512 },
+          "sheet": "assets/sprites/linux/infantry/idle.png",
+          "mask_sheet": "assets/sprites/linux/infantry/idle_mask.png",
+          "rows": 2,
+          "cols": 2,
+          "frame_width": 256,
+          "frame_height": 256,
+          "frame_count": 4,
+          "fps": 5,
+          "loop": true,
+          "order": "row-major"
+        },
+        "walk": {
+          "atlas_rect": { "x": 0, "y": 512, "w": 1024, "h": 1024 },
+          "sheet": "assets/sprites/linux/infantry/walk.png",
+          "mask_sheet": "assets/sprites/linux/infantry/walk_mask.png",
+          "rows": 4,
+          "cols": 4,
+          "frame_width": 256,
+          "frame_height": 256,
+          "frame_count": 16,
+          "fps": 9,
+          "loop": true,
+          "order": "row-major",
+          "row_semantics": {
+            "0": "down",
+            "1": "left",
+            "2": "right",
+            "3": "up"
+          },
+          "col_semantics": {
+            "0": "contact_neutral",
+            "1": "step_a",
+            "2": "passing",
+            "3": "step_b"
+          }
+        },
+        "attack": {
+          "atlas_rect": { "x": 0, "y": 1536, "w": 512, "h": 512 },
+          "sheet": "assets/sprites/linux/infantry/attack.png",
+          "mask_sheet": "assets/sprites/linux/infantry/attack_mask.png",
+          "rows": 2,
+          "cols": 2,
+          "frame_width": 256,
+          "frame_height": 256,
+          "frame_count": 4,
+          "fps": 8,
+          "loop": true,
+          "order": "row-major",
+          "frames": [
+            { "index": 0, "label": "windup" },
+            { "index": 1, "label": "strike" },
+            { "index": 2, "label": "follow_through" },
+            { "index": 3, "label": "recovery" }
+          ]
+        }
+      }
+    },
+    "microsoft": {
+      "root": "assets/sprites/microsoft/infantry",
+      "atlas": {
+        "image": "assets/sprites/microsoft/infantry/atlas.png",
+        "mask_image": "assets/sprites/microsoft/infantry/atlas_mask.png",
+        "width": 1024,
+        "height": 2048
+      },
+      "actions": {
+        "idle": {
+          "atlas_rect": { "x": 0, "y": 0, "w": 512, "h": 512 },
+          "sheet": "assets/sprites/microsoft/infantry/idle.png",
+          "mask_sheet": "assets/sprites/microsoft/infantry/idle_mask.png",
+          "rows": 2,
+          "cols": 2,
+          "frame_width": 256,
+          "frame_height": 256,
+          "frame_count": 4,
+          "fps": 5,
+          "loop": true,
+          "order": "row-major"
+        },
+        "walk": {
+          "atlas_rect": { "x": 0, "y": 512, "w": 1024, "h": 1024 },
+          "sheet": "assets/sprites/microsoft/infantry/walk.png",
+          "mask_sheet": "assets/sprites/microsoft/infantry/walk_mask.png",
+          "rows": 4,
+          "cols": 4,
+          "frame_width": 256,
+          "frame_height": 256,
+          "frame_count": 16,
+          "fps": 9,
+          "loop": true,
+          "order": "row-major",
+          "row_semantics": {
+            "0": "down",
+            "1": "left",
+            "2": "right",
+            "3": "up"
+          },
+          "col_semantics": {
+            "0": "contact_neutral",
+            "1": "step_a",
+            "2": "passing",
+            "3": "step_b"
+          }
+        },
+        "attack": {
+          "atlas_rect": { "x": 0, "y": 1536, "w": 512, "h": 512 },
+          "sheet": "assets/sprites/microsoft/infantry/attack.png",
+          "mask_sheet": "assets/sprites/microsoft/infantry/attack_mask.png",
+          "rows": 2,
+          "cols": 2,
+          "frame_width": 256,
+          "frame_height": 256,
+          "frame_count": 4,
+          "fps": 8,
+          "loop": true,
+          "order": "row-major",
+          "frames": [
+            { "index": 0, "label": "windup" },
+            { "index": 1, "label": "strike" },
+            { "index": 2, "label": "follow_through" },
+            { "index": 3, "label": "recovery" }
+          ]
+        }
+      }
+    }
+  }
+}
